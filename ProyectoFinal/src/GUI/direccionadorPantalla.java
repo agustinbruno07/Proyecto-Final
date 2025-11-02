@@ -6,7 +6,7 @@ import java.awt.*;
 public class direccionadorPantalla {
 
     public static void fadeToPanel(JFrame frame, JPanel panelDestino) {
-        // Contenedor para alpha (asÌ lo podemos mutar dentro de lambdas/inner class)
+        // Contenedor para alpha (as√≠ lo podemos mutar dentro de lambdas/inner class)
         final float[] a = {0f}; // 0 = transparente, 1 = negro total
 
         // Overlay negro encima de todo
@@ -35,7 +35,7 @@ public class direccionadorPantalla {
             if (a[0] >= 1f) {
                 fadeIn.stop();
 
-                // Cambiar contenido cuando ya est· cubierto
+                // Cambiar contenido cuando ya est√© cubierto
                 frame.setContentPane(panelDestino);
                 frame.revalidate();
                 frame.repaint();

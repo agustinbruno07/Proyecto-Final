@@ -12,41 +12,52 @@ public class calle extends JPanel implements KeyListener {
     private JLabel labelPuerta;
     private JLabel mensajeLabel;
     private Timer mensajeTimer;
-    private colisionCalle colisiones; // 🔹 NUEVO
+    private colisiones colisiones;
 
     private boolean upPressed, downPressed, leftPressed, rightPressed;
     private boolean estaEnPuerta = false;
-    private boolean estaEnTransicionIzquierda = false; // Para casa izquierda
-    private boolean estaEnTransicionDerecha = false;   // NUEVO: Para casa derecha
+    private boolean estaEnTransicionIzquierda = false;
+    private boolean estaEnTransicionDerecha = false;
 
-    // Resolución fija del juego
-    private static final int FIXED_WIDTH = 1366;
-    private static final int FIXED_HEIGHT = 768;
+    // 🔹 RESOLUCIÓN BASE (donde diseñaste todo)
+    private static final int BASE_WIDTH = 1366;
+    private static final int BASE_HEIGHT = 768;
+    
+    // 🔹 COORDENADAS BASE (sin escalar)
+    private static final int BASE_PUERTA_X = 641;
+    private static final int BASE_PUERTA_Y = 489;
+    private static final int BASE_PUERTA_W = 50;
+    private static final int BASE_PUERTA_H = 50;
+    
+    private static final int BASE_TRANSICION_IZQ_MIN_Y = 200;
+    private static final int BASE_TRANSICION_IZQ_MAX_Y = 300;
+    private static final int BASE_TRANSICION_DER_MIN_Y = 200;
+    private static final int BASE_TRANSICION_DER_MAX_Y = 300;
 
     public calle() {
         this(641, 692); 
     }
 
-    public calle(int startX, int startY) {
+    public calle(int baseStartX, int baseStartY) {
         setLayout(null);
         setFocusable(true);
         setFocusTraversalKeysEnabled(false);
         Musica.detener();
 
-        fondo = new ImageIcon("src/resources/images/puerta.png").getImage();
+        fondo = new ImageIcon("src/resources/images/puerta REWORK.png").getImage();
+        
+        int startX = escalaManager.escalaX(baseStartX);
+        int startY = escalaManager.escalaY(baseStartY);
         player = new jugador(startX, startY);
         
-        // 🔹 CARGAR MÁSCARA DE COLISIÓN
-        colisiones = new colisionCalle("src/resources/images/colisionesPuerta.png");
+        colisiones = new colisiones("src/resources/images/puertaMascara REWORK.png");
 
         labelPuerta = new JLabel();
-        labelPuerta.setBounds(641, 489, 50, 50);
         labelPuerta.setOpaque(false);
         add(labelPuerta);
 
         mensajeLabel = new JLabel("", JLabel.CENTER);
-        mensajeLabel.setBounds(200, 100, 400, 60);
-        mensajeLabel.setFont(new Font("Arial", Font.BOLD, 20));
+        mensajeLabel.setFont(new Font("Arial", Font.BOLD, escalaManager.escalaFuente(20)));
         mensajeLabel.setForeground(Color.YELLOW);
         mensajeLabel.setBackground(new Color(0, 0, 0, 180));
         mensajeLabel.setOpaque(true);
@@ -59,31 +70,14 @@ public class calle extends JPanel implements KeyListener {
         });
         mensajeTimer.setRepeats(false);
 
+        // temporizador global mostrado por overlay; no usar timer local aquí
+
         addKeyListener(this);
         SwingUtilities.invokeLater(this::requestFocusInWindow);
 
         gameLoop = new Timer(16, e -> {
-            // Trabajamos en coordenadas lógicas (FIXED_WIDTH/FIXED_HEIGHT)
-            int w = FIXED_WIDTH;
-            int h = FIXED_HEIGHT;
-            Rectangle bounds = new Rectangle(0, 0, w, h);
+            actualizarPosicionLabels();
 
-            // Obtener escala actual para adaptar componentes Swing (labels) a fullscreen
-            double scaleX = (getWidth() > 0) ? (double) getWidth() / FIXED_WIDTH : 1.0;
-            double scaleY = (getHeight() > 0) ? (double) getHeight() / FIXED_HEIGHT : 1.0;
-
-            // Actualizar bounds de los JLabels para que sigan la posición escalada
-            int puertaX = (int) Math.round(641 * scaleX);
-            int puertaY = (int) Math.round(489 * scaleY);
-            int puertaW = Math.max(1, (int) Math.round(50 * scaleX));
-            int puertaH = Math.max(1, (int) Math.round(50 * scaleY));
-            labelPuerta.setBounds(puertaX, puertaY, puertaW, puertaH);
-
-            int msgW = Math.max(50, (int) Math.round(400 * scaleX));
-            int msgX = (int) Math.round((FIXED_WIDTH * scaleX - msgW) / 2.0);
-            mensajeLabel.setBounds(msgX, (int) Math.round(100 * scaleY), msgW, (int) Math.round(60 * scaleY));
-
-            // 🔹 GUARDAR POSICIÓN ANTERIOR
             int oldX = player.getX();
             int oldY = player.getY();
 
@@ -92,122 +86,183 @@ public class calle extends JPanel implements KeyListener {
             if (leftPressed)  player.moveLeft();
             if (rightPressed) player.moveRight();
             
-            // 🔹 VERIFICAR COLISIÓN usando coordenadas lógicas
-            if (colisiones.hayColision(player.getBounds(), FIXED_WIDTH, FIXED_HEIGHT)) {
-                // Si hay colisión, volver a la posición anterior
+            if (colisiones.hayColision(player.getBounds())) {
                 player.setPosition(oldX, oldY);
             }
             
+            Rectangle bounds = new Rectangle(0, 0, 
+            		escalaManager.getAnchoActual(), 
+            		escalaManager.getAltoActual());
             player.clampTo(bounds);
+            
             verificarPosicionPuerta();
             verificarPosicionTransicionIzquierda();
             verificarPosicionTransicionDerecha();
+            
+            if (estaEnTransicionIzquierda) {
+                cambiarACasaIzquierda();
+                return;
+            }
+
+            if (estaEnTransicionDerecha) {
+                cambiarACasaDerecha();
+                return;
+            }
+            
             repaint();
         });
         gameLoop.start();
+
+        // Actualizar posición de labels de inmediato y mostrar mensaje inicial durante 3 segundos
+        actualizarPosicionLabels();
+        if (!EstadoJuego.isMensajeCalleMostrado()) {
+            mostrarMensajeDuracion("Tengo que encontrar la forma de entrar", 3000);
+            EstadoJuego.setMensajeCalleMostrado(true);
+        }
+    }
+
+    private void actualizarPosicionLabels() {
+        int puertaX = escalaManager.escalaX(BASE_PUERTA_X);
+        int puertaY = escalaManager.escalaY(BASE_PUERTA_Y);
+        int puertaW = escalaManager.escalaAncho(BASE_PUERTA_W);
+        int puertaH = escalaManager.escalaAlto(BASE_PUERTA_H);
+        labelPuerta.setBounds(puertaX, puertaY, puertaW, puertaH);
+
+        int msgW = escalaManager.escalaAncho(400);
+        int msgX = (escalaManager.getAnchoActual() - msgW) / 2;
+        int msgY = escalaManager.escalaY(100);
+        int msgH = escalaManager.escalaAlto(60);
+        mensajeLabel.setBounds(msgX, msgY, msgW, msgH);
+
+        // Posicionar el timer en la esquina superior derecha
+        int timerW = escalaManager.escalaAncho(100);
+        int timerH = escalaManager.escalaAlto(40);
+        int timerX = escalaManager.getAnchoActual() - timerW - escalaManager.escalaX(20);
+        int timerY = escalaManager.escalaY(20);
+        // timerLabel.setBounds(timerX, timerY, timerW, timerH);
     }
 
     private void verificarPosicionPuerta() {
         Rectangle jugadorBounds = player.getBounds();
-        Rectangle puertaBounds = new Rectangle(641, 489, 50, 50);
         
+        int puertaX = escalaManager.escalaX(BASE_PUERTA_X);
+        int puertaY = escalaManager.escalaY(BASE_PUERTA_Y);
+        int puertaW = escalaManager.escalaAncho(BASE_PUERTA_W);
+        int puertaH = escalaManager.escalaAlto(BASE_PUERTA_H);
+        
+        Rectangle puertaBounds = new Rectangle(puertaX, puertaY, puertaW, puertaH);
         estaEnPuerta = jugadorBounds.intersects(puertaBounds);
     }
 
     private void verificarPosicionTransicionIzquierda() {
         Rectangle jugadorBounds = player.getBounds();
         
-        // Para casa izquierda (x=0, y=286)
-        estaEnTransicionIzquierda = (jugadorBounds.x <= 0 && Math.abs(jugadorBounds.y - 286) <= 20);
+        int minY = escalaManager.escalaY(BASE_TRANSICION_IZQ_MIN_Y);
+        int maxY = escalaManager.escalaY(BASE_TRANSICION_IZQ_MAX_Y);
+        
+        estaEnTransicionIzquierda = (jugadorBounds.x <= 5 && 
+                                     jugadorBounds.y >= minY && 
+                                     jugadorBounds.y <= maxY);
     }
 
-    // NUEVO MÉTODO: Verificar posición para casa derecha
     private void verificarPosicionTransicionDerecha() {
         Rectangle jugadorBounds = player.getBounds();
         
-        // Para casa derecha (x=1302, y=267) con margen de ±20 píxeles
-        estaEnTransicionDerecha = (jugadorBounds.x >= 1302 && Math.abs(jugadorBounds.y - 267) <= 20);
+        // 🔹 ESCALAR ÁREA DE TRANSICIÓN
+        int minY = escalaManager.escalaY(BASE_TRANSICION_DER_MIN_Y);
+        int maxY = escalaManager.escalaY(BASE_TRANSICION_DER_MAX_Y);
+        int limiteX = escalaManager.getAnchoActual() - escalaManager.escalaUniforme(70);
+        
+        estaEnTransicionDerecha = (jugadorBounds.x >= limiteX && 
+                                   jugadorBounds.y >= minY && 
+                                   jugadorBounds.y <= maxY);
     }
 
     private void cambiarACasaIzquierda() {
-        if (gameLoop != null && gameLoop.isRunning()) gameLoop.stop();
-        if (mensajeTimer != null && mensajeTimer.isRunning()) mensajeTimer.stop();
-        
-        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
-        if (parentFrame != null) {
-            casaIzquierda siguientePanel = new casaIzquierda(parentFrame);
-            
-            parentFrame.getContentPane().removeAll();
-            parentFrame.getContentPane().add(siguientePanel);
-            parentFrame.revalidate();
-            parentFrame.repaint();
-            
-            SwingUtilities.invokeLater(siguientePanel::requestFocusInWindow);
-        }
-    }
-
-    private void cambiarACasaDerecha() {
-        if (gameLoop != null && gameLoop.isRunning()) gameLoop.stop();
-        if (mensajeTimer != null && mensajeTimer.isRunning()) mensajeTimer.stop();
-        
-        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
-        if (parentFrame != null) {
-            casaDerecha siguientePanel = new casaDerecha(parentFrame);
-            
-            parentFrame.getContentPane().removeAll();
-            parentFrame.getContentPane().add(siguientePanel);
-            parentFrame.revalidate();
-            parentFrame.repaint();
-            
-            SwingUtilities.invokeLater(siguientePanel::requestFocusInWindow);
-        }
-    }
-
-    private void cambiarACasaPrincipal() {
-        if (gameLoop != null && gameLoop.isRunning()) gameLoop.stop();
-        if (mensajeTimer != null && mensajeTimer.isRunning()) mensajeTimer.stop();
-        
-        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
-        if (parentFrame != null) {
-            CasaPrincipal siguientePanel = new CasaPrincipal(parentFrame);
-            
-            parentFrame.getContentPane().removeAll();
-            parentFrame.getContentPane().add(siguientePanel);
-            parentFrame.revalidate();
-            parentFrame.repaint();
-            
-            SwingUtilities.invokeLater(siguientePanel::requestFocusInWindow);
-        }
-    }
+         if (gameLoop != null && gameLoop.isRunning()) gameLoop.stop();
+         if (mensajeTimer != null && mensajeTimer.isRunning()) mensajeTimer.stop();
+         // overlay global se encarga del temporizador
+         
+         JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+         if (parentFrame != null) {
+             casaIzquierda siguientePanel = new casaIzquierda(parentFrame);
+             
+             parentFrame.getContentPane().removeAll();
+             parentFrame.getContentPane().add(siguientePanel);
+             parentFrame.revalidate();
+             parentFrame.repaint();
+             
+             SwingUtilities.invokeLater(siguientePanel::requestFocusInWindow);
+         }
+     }
+ 
+     private void cambiarACasaDerecha() {
+         if (gameLoop != null && gameLoop.isRunning()) gameLoop.stop();
+         if (mensajeTimer != null && mensajeTimer.isRunning()) mensajeTimer.stop();
+         // overlay global se encarga del temporizador
+         
+         JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+         if (parentFrame != null) {
+             casaDerecha siguientePanel = new casaDerecha(parentFrame);
+             
+             parentFrame.getContentPane().removeAll();
+             parentFrame.getContentPane().add(siguientePanel);
+             parentFrame.revalidate();
+             parentFrame.repaint();
+             
+             SwingUtilities.invokeLater(siguientePanel::requestFocusInWindow);
+         }
+     }
+ 
+     private void cambiarACasaPrincipal() {
+         if (gameLoop != null && gameLoop.isRunning()) gameLoop.stop();
+         if (mensajeTimer != null && mensajeTimer.isRunning()) mensajeTimer.stop();
+         // overlay global se encarga del temporizador
+         
+         JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+         if (parentFrame != null) {
+             CasaPrincipal siguientePanel = new CasaPrincipal(parentFrame, 600,650);
+             
+             parentFrame.getContentPane().removeAll();
+             parentFrame.getContentPane().add(siguientePanel);
+             parentFrame.revalidate();
+             parentFrame.repaint();
+             
+             SwingUtilities.invokeLater(siguientePanel::requestFocusInWindow);
+         }
+     }
 
     private void mostrarMensaje(String mensaje) {
         if (!mensajeLabel.isVisible()) {
             mensajeLabel.setText(mensaje);
             mensajeLabel.setVisible(true);
-            int x = (FIXED_WIDTH - mensajeLabel.getWidth()) / 2;
-            mensajeLabel.setLocation(x, 100);
             mensajeTimer.start();
         }
+    }
+
+    // Nuevo método: muestra un mensaje por una duración en ms (no interfiere con el mensaje por defecto)
+    private void mostrarMensajeDuracion(String mensaje, int ms) {
+        // Detener el timer por defecto si está corriendo
+        if (mensajeTimer != null && mensajeTimer.isRunning()) {
+            mensajeTimer.stop();
+        }
+        mensajeLabel.setText(mensaje);
+        mensajeLabel.setVisible(true);
+        Timer tempTimer = new Timer(ms, e -> {
+            mensajeLabel.setVisible(false);
+            ((Timer)e.getSource()).stop();
+        });
+        tempTimer.setRepeats(false);
+        tempTimer.start();
     }
 
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
-        Graphics2D g2 = (Graphics2D) g;
-
-        // Escalar el contexto gráfico para que todo se dibuje en coordenadas lógicas
-        double sx = (getWidth() > 0) ? (double) getWidth() / FIXED_WIDTH : 1.0;
-        double sy = (getHeight() > 0) ? (double) getHeight() / FIXED_HEIGHT : 1.0;
-
-        java.awt.geom.AffineTransform original = g2.getTransform();
-        g2.scale(sx, sy);
-
-        // Dibujar fondo y jugador usando coordenadas lógicas
-        g2.drawImage(fondo, 0, 0, FIXED_WIDTH, FIXED_HEIGHT, null);
-        player.draw(g2);
-
-        // Restaurar transform para que los componentes Swing (labels) no se vean afectados
-        g2.setTransform(original);
+        
+        g.drawImage(fondo, 0, 0, getWidth(), getHeight(), null);
+        
+        player.draw(g);
     }
 
     @Override
@@ -219,7 +274,6 @@ public class calle extends JPanel implements KeyListener {
         if (key == KeyEvent.VK_A || key == KeyEvent.VK_LEFT)  leftPressed = true;
         if (key == KeyEvent.VK_D || key == KeyEvent.VK_RIGHT) rightPressed = true;
         
-        // Verificar si el cofre fue abierto
         if (key == KeyEvent.VK_E && estaEnPuerta) {
             if (EstadoJuego.isCofreAbierto()) {
                 cambiarACasaPrincipal();
@@ -228,12 +282,10 @@ public class calle extends JPanel implements KeyListener {
             }
         }
         
-        // Para casa izquierda (tecla A)
         if (key == KeyEvent.VK_A && estaEnTransicionIzquierda) {
             cambiarACasaIzquierda();
         }
         
-        // NUEVO: Para casa derecha (tecla D)
         if (key == KeyEvent.VK_D && estaEnTransicionDerecha) {
             cambiarACasaDerecha();
         }

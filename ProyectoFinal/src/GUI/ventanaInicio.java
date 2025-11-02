@@ -1,5 +1,7 @@
 package GUI;
 import javax.swing.JPanel;
+import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 import GUI.Musica;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
@@ -7,115 +9,139 @@ import javax.swing.JLabel;
 import javax.swing.JFrame;
 import java.awt.event.ActionListener;
 import java.awt.event.ActionEvent;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.Graphics;
 import java.awt.Image;
-import java.awt.Dimension;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
+import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Toolkit;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ventanaInicio extends JPanel {
     private Image imagenFondo;
     private JFrame parentFrame;
-    // Resolución fija del juego
-    private static final int FIXED_WIDTH = 1366;
-    private static final int FIXED_HEIGHT = 768;
-    
+    private Map<String, ImageIcon> iconCache = new HashMap<>();
+    private boolean imagenesListas = false;
+
     public ventanaInicio(JFrame frame) {
         this.parentFrame = frame;
         setLayout(null);
-        setFocusable(true);
+        setBackground(Color.BLACK);
         imagenFondo = null;
-        Musica.reproducir("/resources/sonidos/sonidoInicio.wav");
+        
+        // Obtener dimensiones iniciales
+        Dimension parentSize = parentFrame.getSize();
+        int width = parentSize.width <= 0 ? config.getResolucionAncho() : parentSize.width;
+        int height = parentSize.height <= 0 ? config.getResolucionAlto() : parentSize.height;
+        
+        if (width > 0 && height > 0) setPreferredSize(new Dimension(width, height));
 
-        // Forzar tamaño fijo
-        setPreferredSize(new Dimension(FIXED_WIDTH, FIXED_HEIGHT));
-
-        // Construir UI para la resolución fija
-        createOrUpdateUI(FIXED_WIDTH, FIXED_HEIGHT);
+        // Listener para resize
+        this.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                if (imagenesListas) {
+                    Dimension d = getSize();
+                    createOrUpdateUI(d.width, d.height);
+                }
+            }
+        });
     }
 
-    // Permite actualizar la referencia al frame padre si re-creamos el JFrame (fallback fullscreen)
-    public void setParentFrame(JFrame frame) {
-        this.parentFrame = frame;
+    // 🔹 MÉTODO PÚBLICO PARA INICIAR CARGA DESPUÉS DE QUE LA VENTANA SEA VISIBLE
+    public void iniciarCarga() {
+        SwingUtilities.invokeLater(() -> {
+            Dimension d = getSize();
+            cargarImagenesEnBackground(d.width, d.height);
+        });
+    }
+
+    private void cargarImagenesEnBackground(int width, int height) {
+        SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
+            @Override
+            protected Void doInBackground() throws Exception {
+                // Calcular escalado
+                final int BASE_W = 1920;
+                final int BASE_H = 1080;
+                double scale = Math.min((double) width / BASE_W, (double) height / BASE_H);
+                if (scale <= 0) scale = 1.0;
+                int buttonWidth = Math.max(120, (int) Math.round(407 * scale));
+                int buttonHeight = Math.max(32, (int) Math.round(46 * scale));
+
+                // Cargar fondo
+                try {
+                    if (getClass().getResource("/resources/images/fondo.png") != null) {
+                        imagenFondo = new ImageIcon(getClass().getResource("/resources/images/fondo.png")).getImage();
+                    } else {
+                        imagenFondo = new ImageIcon("src/resources/images/fondo.png").getImage();
+                    }
+                } catch (Exception ex) {
+                    imagenFondo = null;
+                }
+
+                // Cargar y escalar iconos
+                cargarIcono("config", buttonWidth, buttonHeight);
+                cargarIcono("inicio", buttonWidth, buttonHeight);
+                cargarIcono("salir", buttonWidth, buttonHeight);
+                cargarIcono("ranking", buttonWidth, buttonHeight);
+
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                imagenesListas = true;
+                createOrUpdateUI(width, height);
+                
+                // 🔹 REPRODUCIR MÚSICA DE FONDO CUANDO TODO ESTÉ LISTO
+                try {
+                    Musica.reproducir("src/resources/sonidos/musicaFondo.wav");
+                } catch (Exception e) {
+                    System.err.println("Error al reproducir música de fondo: " + e.getMessage());
+                }
+            }
+        };
+        
+        worker.execute();
+    }
+
+    private void cargarIcono(String nombre, int width, int height) {
+        try {
+            ImageIcon icon;
+            if (getClass().getResource("/resources/images/" + nombre + ".png") != null) {
+                icon = new ImageIcon(getClass().getResource("/resources/images/" + nombre + ".png"));
+            } else {
+                icon = new ImageIcon("src/resources/images/" + nombre + ".png");
+            }
+            
+            if (icon.getImage() != null) {
+                Image img = icon.getImage().getScaledInstance(width, height, Image.SCALE_SMOOTH);
+                iconCache.put(nombre, new ImageIcon(img));
+            }
+        } catch (Exception e) {
+            iconCache.put(nombre, new ImageIcon());
+        }
     }
 
     private void createOrUpdateUI(int width, int height) {
         removeAll();
-        // Establecer tamaño preferido
         if (width > 0 && height > 0) setPreferredSize(new Dimension(width, height));
 
-        // Usar tamaños fijos pensados para 1366x768
-        final int buttonWidth = 407;
-        final int buttonHeight = 46;
-        final int startX = (width - buttonWidth) / 2;
-        final int startY = (int) Math.round(height * 0.45);
+        // Escalado relativo
+        int buttonWidth = escalaManager.escalaAncho(407);
+        int buttonHeight = escalaManager.escalaAlto(46);
+        int startX = (width - buttonWidth) / 2;
+        int startY = escalaManager.escalaY(345); // ~45% de 768
+        int spacing = escalaManager.escalaY(10);
 
-        // Cargar iconos y fondo (misma lógica que antes)
-        ImageIcon iconConfig = new ImageIcon();
-        ImageIcon iconIniciar = new ImageIcon();
-        ImageIcon iconSalir = new ImageIcon();
-        ImageIcon iconRanking = new ImageIcon();
-        try {
-            if (getClass().getResource("/resources/images/fondo.png") != null) {
-                imagenFondo = new ImageIcon(getClass().getResource("/resources/images/fondo.png")).getImage();
-            } else {
-                imagenFondo = new ImageIcon("src/resources/images/fondo.png").getImage();
-            }
-        } catch (Exception ex) {
-            imagenFondo = null;
-        }
-
-        try {
-            if (getClass().getResource("/resources/images/config.png") != null) {
-                iconConfig = new ImageIcon(getClass().getResource("/resources/images/config.png"));
-            } else {
-                iconConfig = new ImageIcon("src/resources/images/config.png");
-            }
-            if (getClass().getResource("/resources/images/inicio.png") != null) {
-                iconIniciar = new ImageIcon(getClass().getResource("/resources/images/inicio.png"));
-            } else {
-                iconIniciar = new ImageIcon("src/resources/images/inicio.png");
-            }
-            if (getClass().getResource("/resources/images/salir.png") != null) {
-                iconSalir = new ImageIcon(getClass().getResource("/resources/images/salir.png"));
-            } else {
-                iconSalir = new ImageIcon("src/resources/images/salir.png");
-            }
-            if (getClass().getResource("/resources/images/ranking.png") != null) {
-                iconRanking = new ImageIcon(getClass().getResource("/resources/images/ranking.png"));
-            } else {
-                iconRanking = new ImageIcon("src/resources/images/ranking.png");
-            }
-        } catch (Exception ex) {
-            // deja iconos vacíos
-        }
-
-        // Escalar iconos al tamaño de los botones
-        try {
-            if (iconIniciar.getImage() != null) {
-                Image img = iconIniciar.getImage().getScaledInstance(buttonWidth, buttonHeight, Image.SCALE_SMOOTH);
-                iconIniciar = new ImageIcon(img);
-            }
-            if (iconConfig.getImage() != null) {
-                Image img = iconConfig.getImage().getScaledInstance(buttonWidth, buttonHeight, Image.SCALE_SMOOTH);
-                iconConfig = new ImageIcon(img);
-            }
-            if (iconRanking.getImage() != null) {
-                Image img = iconRanking.getImage().getScaledInstance(buttonWidth, buttonHeight, Image.SCALE_SMOOTH);
-                iconRanking = new ImageIcon(img);
-            }
-            if (iconSalir.getImage() != null) {
-                Image img = iconSalir.getImage().getScaledInstance(buttonWidth, buttonHeight, Image.SCALE_SMOOTH);
-                iconSalir = new ImageIcon(img);
-            }
-        } catch (Exception e) {
-            // Si falla el escalado, dejamos los iconos originales
-        }
-
+        // Botón Iniciar
         JButton btnIniciar = new JButton();
         btnIniciar.setBounds(startX, startY, buttonWidth, buttonHeight);
-        btnIniciar.setIcon(iconIniciar);
+        btnIniciar.setIcon(iconCache.getOrDefault("inicio", new ImageIcon()));
         btnIniciar.setBorderPainted(false);
         btnIniciar.setContentAreaFilled(false);
         btnIniciar.setFocusPainted(false);
@@ -124,7 +150,8 @@ public class ventanaInicio extends JPanel {
 
         btnIniciar.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                Musica.reproducir("/resources/sonidos/Inicio.wav");
+                // 🔹 SONIDO DE BOTÓN
+                Musica.reproducir("src/resources/sonidos/inicio.wav");
                 parentFrame.getContentPane().removeAll();
                 parentFrame.getContentPane().add(new dialogo1(parentFrame)); 
                 parentFrame.revalidate();
@@ -132,9 +159,11 @@ public class ventanaInicio extends JPanel {
             }
         });
 
+        // Botón Config
         JButton btnConfig = new JButton();
-        btnConfig.setBounds(startX, startY + buttonHeight + 10, buttonWidth, buttonHeight);
-        btnConfig.setIcon(iconConfig);
+        int scale = 0;
+		btnConfig.setBounds(startX, startY + buttonHeight + (int)(10 * scale), buttonWidth, buttonHeight);
+        btnConfig.setIcon(iconCache.getOrDefault("config", new ImageIcon()));
         btnConfig.setBorderPainted(false);
         btnConfig.setContentAreaFilled(false);
         btnConfig.setFocusPainted(false);
@@ -143,13 +172,16 @@ public class ventanaInicio extends JPanel {
 
         btnConfig.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
+                // 🔹 SONIDO DE BOTÓN
+                Musica.reproducir("src/resources/sonidos/inicio.wav");
                 config.mostrarVentanaConfig(parentFrame);
             }
         });
 
+        // Botón Ranking
         JButton btnRanking = new JButton();
-        btnRanking.setBounds(startX, startY + 2*(buttonHeight + 10), buttonWidth, buttonHeight);
-        btnRanking.setIcon(iconRanking);
+        btnRanking.setBounds(startX, startY + 2*(buttonHeight + (int)(10 * scale)), buttonWidth, buttonHeight);
+        btnRanking.setIcon(iconCache.getOrDefault("ranking", new ImageIcon()));
         btnRanking.setBorderPainted(false);
         btnRanking.setContentAreaFilled(false);
         btnRanking.setFocusPainted(false);
@@ -158,6 +190,8 @@ public class ventanaInicio extends JPanel {
 
         btnRanking.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
+                // 🔹 SONIDO DE BOTÓN
+                Musica.reproducir("src/resources/sonidos/inicio.wav");
                 parentFrame.getContentPane().removeAll();
                 parentFrame.getContentPane().add(new Ranking(parentFrame));
                 parentFrame.revalidate();
@@ -165,9 +199,10 @@ public class ventanaInicio extends JPanel {
             }
         });
 
+        // Botón Salir
         JButton btnSalir = new JButton();
-        btnSalir.setBounds(startX, startY + 3*(buttonHeight + 10), buttonWidth, buttonHeight);
-        btnSalir.setIcon(iconSalir);
+        btnSalir.setBounds(startX, startY + 3*(buttonHeight + (int)(10 * scale)), buttonWidth, buttonHeight);
+        btnSalir.setIcon(iconCache.getOrDefault("salir", new ImageIcon()));
         btnSalir.setBorderPainted(false);
         btnSalir.setContentAreaFilled(false);
         btnSalir.setFocusPainted(false);
@@ -176,6 +211,8 @@ public class ventanaInicio extends JPanel {
 
         btnSalir.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
+                // 🔹 SONIDO DE BOTÓN
+                Musica.reproducir("src/resources/sonidos/inicio.wav");
                 System.exit(0);
             }
         });
@@ -184,86 +221,72 @@ public class ventanaInicio extends JPanel {
         revalidate();
         repaint();
     }
-    
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
         if (imagenFondo != null) {
-            // Dibujar usando el tamaño actual del panel para que funcione en fullscreen
             g.drawImage(imagenFondo, 0, 0, getWidth(), getHeight(), this);
         }
     }
-    
+
     public static void mostrarVentana() {
-         // Usar una referencia final mutable para el JFrame para permitir uso dentro de lambdas
-         final JFrame[] frameRef = new JFrame[1];
-         JFrame initial = new JFrame("Proyecto Final");
-         initial.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-         // Intentar abrir en pantalla completa borderless por defecto
-         GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-         GraphicsDevice gd = ge.getDefaultScreenDevice();
+        JFrame frame = new JFrame("Proyecto Final");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        
+        boolean pantalla = config.isPantallaCompleta();
+        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        GraphicsDevice gd = ge.getDefaultScreenDevice();
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        
+        int width = config.getResolucionAncho();
+        int height = config.getResolucionAlto();
+        escalaManager.configurarEscala(width, height);
+        // 🔹 CREAR PANEL SIN CARGAR IMÁGENES AÚN
+        ventanaInicio panel = new ventanaInicio(frame);
+        
+        if (pantalla) {
+            frame.setUndecorated(true);
+            width = screenSize.width;
+            height = screenSize.height;
+            panel.setPreferredSize(new Dimension(width, height));
+            frame.getContentPane().add(panel);
+            frame.pack();
+            
+            // 🔹 HACER VISIBLE PRIMERO
+            frame.setVisible(true);
 
-         initial.setUndecorated(true);
-         ventanaInicio panel = new ventanaInicio(initial);
-         initial.getContentPane().add(panel);
-         initial.setResizable(false);
-         initial.setVisible(true);
+            // No crear overlay aquí: lo mostramos después de los diálogos, en el mapa jugable
+            
+            if (gd.isFullScreenSupported()) {
+                try {
+                    gd.setFullScreenWindow(frame);
+                    config.applyDisplayModeIfNeeded(gd);
+                } catch (Exception e) {
+                    System.err.println("Error al establecer pantalla completa: " + e.getMessage());
+                }
+            } else {
+                frame.setExtendedState(JFrame.MAXIMIZED_BOTH);
+            }
+        } else {
+            frame.setUndecorated(false);
+            frame.setResizable(true);
+            width = Math.min(width, screenSize.width);
+            height = Math.min(height, screenSize.height);
+            panel.setPreferredSize(new Dimension(width, height));
+            frame.getContentPane().add(panel);
+            frame.pack();
+            frame.setLocationRelativeTo(null);
+            
+            // 🔹 HACER VISIBLE PRIMERO
+            frame.setVisible(true);
 
-         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-         // Actualizar resolución en el manejador de escala para que otros paneles puedan adaptarse
-         ManejadorEscala.setResolution(screenSize.width, screenSize.height);
-
-         frameRef[0] = initial;
-
-         if (gd != null && gd.isFullScreenSupported()) {
-             try {
-                 gd.setFullScreenWindow(frameRef[0]);
-             } catch (Exception ex) {
-                 // fallback: maximizar ventana
-                 // intentar recrear como borderless que ocupa toda la pantalla (incluye area de taskbar)
-                 frameRef[0].dispose();
-                 frameRef[0] = new JFrame("Proyecto Final");
-                 frameRef[0].setUndecorated(true);
-                 frameRef[0].setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-                 frameRef[0].getContentPane().add(panel);
-                 panel.setParentFrame(frameRef[0]);
-                 frameRef[0].setBounds(0, 0, screenSize.width, screenSize.height);
-                 frameRef[0].setVisible(true);
-                 // Forzar al frente temporalmente y luego desactivar alwaysOnTop (para no interferir con Alt-Tab)
-                 try { frameRef[0].setAlwaysOnTop(true); } catch (Exception ignore) {}
-                 try { frameRef[0].toFront(); } catch (Exception ignore) {}
-                 try {
-                     javax.swing.Timer t = new javax.swing.Timer(200, ev -> {
-                         try { frameRef[0].setAlwaysOnTop(false); } catch (Exception ignore) {}
-                         ((javax.swing.Timer)ev.getSource()).stop();
-                     });
-                     t.setRepeats(false);
-                     t.start();
-                 } catch (Exception ignore) {}
-             }
-         } else {
-             // Si no hay soporte exclusivo, recrear borderless y cubrir toda la pantalla
-             frameRef[0].dispose();
-             frameRef[0] = new JFrame("Proyecto Final");
-             frameRef[0].setUndecorated(true);
-             frameRef[0].setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-             frameRef[0].getContentPane().add(panel);
-             panel.setParentFrame(frameRef[0]);
-             frameRef[0].setBounds(0, 0, screenSize.width, screenSize.height);
-             frameRef[0].setVisible(true);
-             // Forzar al frente temporalmente y luego desactivar alwaysOnTop (para no interferir con Alt-Tab)
-             try { frameRef[0].setAlwaysOnTop(true); } catch (Exception ignore) {}
-             try { frameRef[0].toFront(); } catch (Exception ignore) {}
-             try {
-                 javax.swing.Timer t2 = new javax.swing.Timer(200, ev -> {
-                     try { frameRef[0].setAlwaysOnTop(false); } catch (Exception ignore) {}
-                     ((javax.swing.Timer)ev.getSource()).stop();
-                 });
-                 t2.setRepeats(false);
-                 t2.start();
-             } catch (Exception ignore) {}
-         }
-
-         frameRef[0].requestFocus();
-      }
-  }
+            // No crear overlay aquí: lo mostramos después de los diálogos, en el mapa jugable
+        }
+        
+        frame.requestFocus();
+        
+        // 🔹 AHORA SÍ INICIAR LA CARGA DE IMÁGENES (ventana ya visible)
+        panel.iniciarCarga();
+    }
+}

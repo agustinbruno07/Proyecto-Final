@@ -1,5 +1,9 @@
+=\=\=\=\=\=\=
+<<<<<<<=HEAD
+>>>>>>>=75b285e0ea0211c328ede9c54f1313f6de46e69a
 eclipse.preferences.version=1
 encoding//src/GUI/calle.java=UTF-8
 encoding//src/GUI/casaIzquierda.java=UTF-8
 encoding//src/GUI/colisionCalle.java=UTF-8
 encoding//src/GUI/dialogo1.java=UTF-8
+encoding//src/GUI/dialogo2.java=UTF-8

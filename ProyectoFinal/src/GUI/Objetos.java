@@ -8,6 +8,6 @@ public class Objetos extends JPanel {
     public Objetos(JFrame frame) {
         this.parentFrame = frame;
         setLayout(null);
-        // Tu código del juego aquí...
+        // Tu cÃ³digo del juego aquÃ­...
     }
 }

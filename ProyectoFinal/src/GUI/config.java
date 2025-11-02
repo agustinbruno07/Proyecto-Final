@@ -7,7 +7,6 @@ import java.awt.DisplayMode;
 public class config extends JPanel {
     private Image imagenFondo;
     
-    private static int volumenMusica = 50;
     private static int volumenEfectos = 50;
     private static boolean pantallaCompleta = true;
     private static String dificultad = "Normal";
@@ -18,27 +17,38 @@ public class config extends JPanel {
     private static DisplayMode previousDisplayMode = null;
     private JComboBox<String> comboResoluciones;
     
-    private JSlider sliderMusica;
     private JSlider sliderEfectos;
-    private JCheckBox chkPantallaCompleta;
     private JButton btnGuardar;
     private JButton btnRestablecer;
     private JButton btnVolver;
     
     private JFrame parentFrame;
+    // Referencia opcional al diálogo modal que contiene este panel
+    private javax.swing.JDialog ownerDialog = null;
+    private Runnable onCloseCallback = null;
+
+    private int originalVolumenEfectos;
+    private int originalResolucionAncho;
+    private int originalResolucionAlto;
 
     public config() {
         setLayout(null);
         setBackground(new Color(20, 20, 30));
-        
+
+        // Guardar snapshot de valores al abrir la configuración
+        // Ya no hay música en el juego: sólo guardamos efectos
+        originalVolumenEfectos = Musica.getVolumenEfectos();
+        originalResolucionAncho = resolucionAncho;
+        originalResolucionAlto = resolucionAlto;
+
         try {
             imagenFondo = new ImageIcon("src/resources/images/fondo_config.png").getImage();
         } catch (Exception e) {
             imagenFondo = null;
         }
         
-        // Configurar componentes con posiciones fijas pero en una ventana de tama�o fijo
-        JLabel lblTitulo = new JLabel("CONFIGURACI�N", JLabel.CENTER);
+        // Configurar componentes con posiciones fijas pero en una ventana de tamaño fijo
+        JLabel lblTitulo = new JLabel("CONFIGURACION", JLabel.CENTER);
         lblTitulo.setBounds(0, 20, 600, 40);
         lblTitulo.setFont(new Font("Arial", Font.BOLD, 28));
         lblTitulo.setForeground(Color.WHITE);
@@ -50,85 +60,54 @@ public class config extends JPanel {
         lblAudio.setForeground(new Color(100, 200, 255));
         add(lblAudio);
         
-        JLabel lblMusicaTexto = new JLabel("Volumen M�sica:");
-        lblMusicaTexto.setBounds(70, 115, 150, 25);
-        lblMusicaTexto.setFont(new Font("Arial", Font.PLAIN, 14));
-        lblMusicaTexto.setForeground(Color.WHITE);
-        add(lblMusicaTexto);
-        
-        sliderMusica = new JSlider(0, 100, volumenMusica);
-        sliderMusica.setBounds(220, 115, 250, 40);
-        sliderMusica.setBackground(new Color(20, 20, 30));
-        sliderMusica.setForeground(new Color(100, 200, 255));
-        add(sliderMusica);
-        
-        JLabel lblVolumenMusica = new JLabel(volumenMusica + "%");
-        lblVolumenMusica.setBounds(480, 115, 50, 25);
-        lblVolumenMusica.setFont(new Font("Arial", Font.BOLD, 14));
-        lblVolumenMusica.setForeground(Color.WHITE);
-        add(lblVolumenMusica);
-        
-        sliderMusica.addChangeListener(e -> {
-            lblVolumenMusica.setText(sliderMusica.getValue() + "%");
-        });
-        
         JLabel lblEfectosTexto = new JLabel("Volumen Efectos:");
-        lblEfectosTexto.setBounds(70, 155, 150, 25);
+        lblEfectosTexto.setBounds(70, 115, 150, 25);
         lblEfectosTexto.setFont(new Font("Arial", Font.PLAIN, 14));
         lblEfectosTexto.setForeground(Color.WHITE);
         add(lblEfectosTexto);
         
         sliderEfectos = new JSlider(0, 100, volumenEfectos);
-        sliderEfectos.setBounds(220, 155, 250, 40);
+        sliderEfectos.setBounds(220, 115, 250, 40);
         sliderEfectos.setBackground(new Color(20, 20, 30));
         sliderEfectos.setForeground(new Color(100, 200, 255));
         add(sliderEfectos);
         
         JLabel lblVolumenEfectos = new JLabel(volumenEfectos + "%");
-        lblVolumenEfectos.setBounds(480, 155, 50, 25);
+        lblVolumenEfectos.setBounds(480, 115, 50, 25);
         lblVolumenEfectos.setFont(new Font("Arial", Font.BOLD, 14));
         lblVolumenEfectos.setForeground(Color.WHITE);
         add(lblVolumenEfectos);
         
         sliderEfectos.addChangeListener(e -> {
-            lblVolumenEfectos.setText(sliderEfectos.getValue() + "%");
+            int val = sliderEfectos.getValue();
+            lblVolumenEfectos.setText(val + "%");
+            // Aplicar en tiempo real
+            Musica.setVolumenEfectos(val);
         });
         
-        JLabel lblVideo = new JLabel("VIDEO");
-        lblVideo.setBounds(50, 210, 500, 25);
-        lblVideo.setFont(new Font("Arial", Font.BOLD, 18));
-        lblVideo.setForeground(new Color(100, 200, 255));
-        add(lblVideo);
-        
-        chkPantallaCompleta = new JCheckBox("Pantalla Completa");
-        chkPantallaCompleta.setBounds(70, 245, 200, 25);
-        chkPantallaCompleta.setFont(new Font("Arial", Font.PLAIN, 14));
-        chkPantallaCompleta.setForeground(Color.WHITE);
-        chkPantallaCompleta.setBackground(new Color(20, 20, 30));
-        chkPantallaCompleta.setSelected(false); // forzada a ventana
-        chkPantallaCompleta.setFocusPainted(false);
-        chkPantallaCompleta.setEnabled(false); // no permitir cambiar
-        add(chkPantallaCompleta);
-        
         JLabel lblJuego = new JLabel("JUEGO");
-        lblJuego.setBounds(50, 285, 500, 25);
+        lblJuego.setBounds(50, 165, 500, 25);
         lblJuego.setFont(new Font("Arial", Font.BOLD, 18));
         lblJuego.setForeground(new Color(100, 200, 255));
         add(lblJuego);
         
-        JLabel lblResolTexto = new JLabel("Resoluci�n:");
-        lblResolTexto.setBounds(70, 320, 150, 25);
+        JLabel lblResolTexto = new JLabel("Resolucion:");
+        lblResolTexto.setBounds(70, 200, 150, 25);
         lblResolTexto.setFont(new Font("Arial", Font.PLAIN, 14));
         lblResolTexto.setForeground(Color.WHITE);
         add(lblResolTexto);
         
-        String[] baseRes = {"1366x768"};
+        String[] baseRes = {
+        	    "1920x1080",  // Full HD
+        	    "1366x768",   // Base (HD Ready)
+        	    "1280x720"    // HD
+        	};
         comboResoluciones = new JComboBox<>(baseRes);
-        comboResoluciones.setBounds(220, 320, 200, 25);
+        comboResoluciones.setEnabled(true);
+        comboResoluciones.setBounds(220, 235, 200, 25);
         comboResoluciones.setBackground(new Color(20, 20, 30));
         comboResoluciones.setForeground(Color.WHITE);
         comboResoluciones.setFont(new Font("Arial", Font.PLAIN, 14));
-        comboResoluciones.setEnabled(false); // fijada a 1366x768
 
         String actualRes = resolucionAncho + "x" + resolucionAlto;
         // Si la resolución actual no está en la lista, agregarla y seleccionarla
@@ -179,10 +158,8 @@ public class config extends JPanel {
         add(btnVolver);
         
         btnVolver.addActionListener(e -> {
-            Window window = SwingUtilities.getWindowAncestor(this);
-            if (window != null) {
-                window.dispose();
-            }
+            // Revertir cambios realizados en la sesión de configuración y cerrar sin guardar
+            revertirCambiosYCerrar();
         });
         
         agregarEfectoHover(btnGuardar, new Color(50, 150, 50), new Color(70, 200, 70));
@@ -194,6 +171,46 @@ public class config extends JPanel {
         this.parentFrame = frame;
     }
     
+    public void setOwnerDialog(javax.swing.JDialog dialog) {
+        this.ownerDialog = dialog;
+    }
+    
+    public void setOnCloseCallback(Runnable r) {
+        this.onCloseCallback = r;
+    }
+    public static boolean isPantallaCompleta() {
+        return pantallaCompleta;
+    }
+    // Revierte los cambios hechos en la UI de configuración a los valores originales
+    private void revertirCambiosYCerrar() {
+        // Restaurar volúmenes de efectos
+        try { Musica.setVolumenEfectos(originalVolumenEfectos); } catch (Exception ignore) {}
+
+        // Restaurar pantalla completa y resolución internas y aplicar cambios
+        resolucionAncho = originalResolucionAncho;
+        resolucionAlto = originalResolucionAlto;
+        try { aplicarCambiosInmediatos(); } catch (Exception ignore) {}
+
+        // Cerrar la UI de configuración (overlay o diálogo) sin guardar
+        try {
+            if (onCloseCallback != null) {
+                try { onCloseCallback.run(); } catch (Exception ignore) {}
+            } else if (ownerDialog != null && ownerDialog.isShowing()) {
+                try { ownerDialog.dispose(); } catch (Exception ignore) {}
+                ownerDialog = null;
+            } else {
+                Window window = SwingUtilities.getWindowAncestor(this);
+                if (window != null && window instanceof javax.swing.JDialog) {
+                    try { window.dispose(); } catch (Exception ignore) {}
+                } else {
+                    if (parentFrame != null) {
+                        try { parentFrame.revalidate(); parentFrame.repaint(); } catch (Exception ignore) {}
+                    }
+                }
+            }
+        } catch (Exception ignore) {}
+    }
+
     private void agregarEfectoHover(JButton btn, Color colorNormal, Color colorHover) {
         btn.addMouseListener(new MouseAdapter() {
             @Override
@@ -209,116 +226,243 @@ public class config extends JPanel {
     }
     
     private void guardarConfiguracion() {
-        volumenMusica = sliderMusica.getValue();
+        // Leer el estado real de la casilla de pantalla completa
         volumenEfectos = sliderEfectos.getValue();
-        // Forzar valores fijos: siempre ventana y 1366x768
-        pantallaCompleta = false;
-        resolucionAncho = 1366;
-        resolucionAlto = 768;
-        
+        String seleccion = (String) comboResoluciones.getSelectedItem();
+        if (seleccion != null && seleccion.contains("x")) {
+            String[] partes = seleccion.split("x");
+            try {
+                resolucionAncho = Integer.parseInt(partes[0]);
+                resolucionAlto = Integer.parseInt(partes[1]);
+                
+                // 🔹 RECONFIGURAR ESCALA MANAGER
+                escalaManager.configurarEscala(resolucionAncho, resolucionAlto);
+                
+            } catch (Exception ex) {
+                System.err.println("Error al parsear resolución: " + ex.getMessage());
+                resolucionAncho = 1366;
+                resolucionAlto = 768;
+            }
+        }
+
+        // Asegurarse de que Musica tenga los valores guardados (solo efectos)
+        Musica.setVolumenEfectos(volumenEfectos);
+
         // Aplicar cambios inmediatamente
         aplicarCambiosInmediatos();
-        
-        Window window = SwingUtilities.getWindowAncestor(this);
-        if (window != null) {
-            window.dispose();
-        }
-        
-        JOptionPane.showMessageDialog(this,
-            "Configuración aplicada correctamente",
-            "Configuración Guardada",
-            JOptionPane.INFORMATION_MESSAGE);
+        try {
+            if (onCloseCallback != null) {
+                try { onCloseCallback.run(); } catch (Exception ignore) {}
+            } else if (ownerDialog != null && ownerDialog.isShowing()) {
+                try { ownerDialog.dispose(); } catch (Exception ignore) {}
+                ownerDialog = null;
+            } else {
+                Window window = SwingUtilities.getWindowAncestor(this);
+                if (window != null && window instanceof javax.swing.JDialog) {
+                    try { window.dispose(); } catch (Exception ignore) {}
+                } else {
+                    // If it's the main frame (JFrame) or no window, just refresh the parent frame instead of disposing it
+                    if (parentFrame != null) {
+                        try { parentFrame.revalidate(); parentFrame.repaint(); } catch (Exception ignore) {}
+                    }
+                }
+            }
+        } catch (Exception ignore) {}
+
+        // No mostrar diálogo; cerrar simplemente la UI de configuración
+        return;
     }
     
     private void aplicarCambiosInmediatos() {
-         if (parentFrame != null) {
-             GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
-             GraphicsDevice gd = ge.getDefaultScreenDevice();
+        escalaManager.configurarEscala(resolucionAncho, resolucionAlto);
+        if (parentFrame == null) return;
 
-             // Cerrar frame actual
-             parentFrame.dispose();
+        // Fast path: try to toggle fullscreen on the existing frame without recreating it.
+        // This avoids disposing/creating frames which causes repaint flicker, especially on fullscreen.
+        try {
+            if (applyFullscreenToExistingFrame()) {
+                // Volumen y demás ya aplicados por setters anteriores si corresponde.
+                return;
+            }
+        } catch (Exception ignore) {}
 
-             // Crear nuevo frame con nueva configuraci�n
-             JFrame nuevoFrame = new JFrame("Proyecto Final");
-             nuevoFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-             // Usar undecorated solo si se pide pantalla completa
-             nuevoFrame.setUndecorated(pantallaCompleta);
+        boolean dialogWasOpen = ownerDialog != null && ownerDialog.isShowing();
+        // Si el diálogo estaba abierto, quitar el panel del diálogo y cerrarlo temporalmente
+        if (dialogWasOpen) {
+            try {
+                ownerDialog.getContentPane().remove(this);
+                ownerDialog.dispose();
+            } catch (Exception ignore) {}
+            ownerDialog = null;
+        }
 
-             // Obtener tama�o de pantalla y ajustar si es necesario
-             Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-             int targetWidth = resolucionAncho;
-             int targetHeight = resolucionAlto;
+        GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+        GraphicsDevice gd = ge.getDefaultScreenDevice();
 
-             if (pantallaCompleta) {
-                 // En pantalla completa usamos el tama�o de pantalla
-                 targetWidth = screenSize.width;
-                 targetHeight = screenSize.height;
-             } else {
-                 // En modo ventana, no permitir que la resoluci�n sea mayor que la pantalla
-                 targetWidth = Math.min(targetWidth, screenSize.width);
-                 targetHeight = Math.min(targetHeight, screenSize.height);
-             }
+        // Guardar y remover el contenido existente (si hay) para reusarlo en el nuevo frame
+        Component oldContent = null;
+        try {
+            if (parentFrame.getContentPane().getComponentCount() > 0) {
+                oldContent = parentFrame.getContentPane().getComponent(0);
+                parentFrame.getContentPane().remove(oldContent);
+            }
+        } catch (Exception ignore) {}
+        // Cerrar frame actual
+        parentFrame.dispose();
 
-             // Establecer tama�o y contenido antes de mostrar
-             nuevoFrame.setSize(targetWidth, targetHeight);
-             nuevoFrame.setLocationRelativeTo(null);
-             nuevoFrame.getContentPane().add(new ventanaInicio(nuevoFrame));
-             nuevoFrame.setResizable(false);
+        // Crear nuevo frame con nueva configuración
+        JFrame nuevoFrame = new JFrame("Proyecto Final");
+        nuevoFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        nuevoFrame.setUndecorated(pantallaCompleta);
 
-             if (pantallaCompleta && gd.isFullScreenSupported()) {
-                 // Mostrar la ventana antes de solicitar el modo exclusivo en algunas plataformas
-                 nuevoFrame.setVisible(true);
-                 // Poner en modo pantalla completa (ventana no decorada ya aplicada)
-                 try {
-                     gd.setFullScreenWindow(nuevoFrame);
-                 } catch (Exception ex) {
-                     // fallback: intentar maximizar si no se puede entrar en modo exclusivo
-                     nuevoFrame.setExtendedState(JFrame.MAXIMIZED_BOTH);
-                 }
-                 // Intentar cambiar la DisplayMode a la resolución seleccionada, si es soportado
-                boolean ok = applyDisplayModeIfNeeded(nuevoFrame);
-                if (!ok) {
-                    System.out.println("[config] display mode not applied; using borderless fallback");
-                    // recreate as borderless fullscreen to ensure content fills the screen
-                    nuevoFrame.dispose();
-                    nuevoFrame = createBorderlessFullscreen(gd);
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        int targetWidth = resolucionAncho;
+        int targetHeight = resolucionAlto;
+
+        if (pantallaCompleta) {
+            targetWidth = screenSize.width;
+            targetHeight = screenSize.height;
+        } else {
+            targetWidth = Math.min(targetWidth, screenSize.width);
+            targetHeight = Math.min(targetHeight, screenSize.height);
+        }
+
+        nuevoFrame.setSize(targetWidth, targetHeight);
+        nuevoFrame.setLocationRelativeTo(null);
+        // Reusar el contenido anterior para preservar estado si es posible
+        if (oldContent != null) {
+            try {
+                nuevoFrame.getContentPane().add(oldContent);
+            } catch (Exception ex) {
+                nuevoFrame.getContentPane().add(new JPanel());
+            }
+        } else {
+            nuevoFrame.getContentPane().add(new JPanel());
+        }
+         nuevoFrame.setResizable(false);
+
+        if (pantallaCompleta && gd.isFullScreenSupported()) {
+            nuevoFrame.setVisible(true);
+            try {
+                gd.setFullScreenWindow(nuevoFrame);
+            } catch (Exception ex) {
+                nuevoFrame.setExtendedState(JFrame.MAXIMIZED_BOTH);
+            }
+            boolean ok = applyDisplayModeIfNeeded(nuevoFrame);
+            if (!ok) {
+                nuevoFrame.dispose();
+                nuevoFrame = createBorderlessFullscreen(gd);
+            }
+        } else {
+            if (pantallaCompleta) nuevoFrame.setExtendedState(JFrame.MAXIMIZED_BOTH);
+            nuevoFrame.setVisible(true);
+        }
+
+        applyDisplayModeIfNeeded(nuevoFrame);
+        nuevoFrame.requestFocus();
+
+        this.parentFrame = nuevoFrame;
+
+        // Si el diálogo estaba abierto antes, volver a agregar este panel dentro de un nuevo diálogo sobre el nuevo frame
+        if (dialogWasOpen) {
+            try {
+                javax.swing.JDialog newDialog = new javax.swing.JDialog(nuevoFrame);
+                newDialog.setTitle("Configuración");
+                newDialog.setUndecorated(true);
+                newDialog.setDefaultCloseOperation(javax.swing.JDialog.DISPOSE_ON_CLOSE);
+                newDialog.setSize(600, 450);
+                newDialog.setLocationRelativeTo(nuevoFrame);
+                newDialog.getContentPane().add(this);
+                this.setOwnerDialog(newDialog);
+                // Asegurar arrastre sobre el panel (this)
+                final Point[] panelMouse = new Point[1];
+                this.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mousePressed(MouseEvent e) { panelMouse[0] = e.getPoint(); }
+                });
+                this.addMouseMotionListener(new MouseMotionAdapter() {
+                    @Override
+                    public void mouseDragged(MouseEvent e) {
+                        Point loc = e.getLocationOnScreen();
+                        newDialog.setLocation(loc.x - panelMouse[0].x, loc.y - panelMouse[0].y);
+                    }
+                });
+                // ESC para cerrar
+                newDialog.getRootPane().registerKeyboardAction(ev -> { try { newDialog.dispose(); } catch (Exception ignore) {} }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
+                newDialog.setVisible(true);
+              } catch (Exception ex) {
+                  System.out.println("[config] no se pudo reabrir el diálogo de configuración: " + ex.getMessage());
+              }
+          }
+    }
+
+    // Intenta aplicar fullscreen sobre el JFrame actualmente existente (sin recrearlo).
+    // Retorna true si aplicó un cambio y evitó la recreación (fast-path), false para usar el fallback recreador.
+    private boolean applyFullscreenToExistingFrame() {
+        if (parentFrame == null) return false;
+        try {
+            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+            GraphicsDevice gd = ge.getDefaultScreenDevice();
+
+            // Si estamos entrando en pantalla completa
+            if (pantallaCompleta) {
+                // Si ya está en full-screen, nada que hacer
+                Window currentFull = gd.getFullScreenWindow();
+                if (currentFull == parentFrame) return true;
+
+                // Intentar poner la ventana actual en full-screen sin recrearla
+                try {
+                    // Some platforms work better if window is visible before setFullScreenWindow
+                    parentFrame.setVisible(true);
+                    if (gd.isFullScreenSupported()) {
+                        gd.setFullScreenWindow(parentFrame);
+                    } else {
+                        parentFrame.setExtendedState(JFrame.MAXIMIZED_BOTH);
+                    }
+                    return true;
+                } catch (Exception ex) {
+                    // fallback to recreate
+                    return false;
                 }
-             } else {
-                 // Si no soporta full screen, o estamos en modo ventana, mostrar normalmente
-                 if (pantallaCompleta) {
-                     // Forzar maximizado si no hay soporte de full screen
-                     nuevoFrame.setExtendedState(JFrame.MAXIMIZED_BOTH);
-                 }
-                 nuevoFrame.setVisible(true);
-             }
-
-             // Llamar a applyDisplayModeIfNeeded independientemente para que, si estamos saliendo
-             // de pantalla completa, se restaure la DisplayMode previa; si estamos entrando, no hará nada
-             // hasta que haya un full-screen window (applyDisplayModeIfNeeded maneja ambas ramas).
-             applyDisplayModeIfNeeded(nuevoFrame);
-
-             nuevoFrame.requestFocus();
-         }
-     }
-
+            } else {
+                // Saliendo de pantalla completa
+                try {
+                    if (gd.getFullScreenWindow() == parentFrame) {
+                        try { gd.setFullScreenWindow(null); } catch (Exception ignore) {}
+                    }
+                    // Restaurar tamaño de ventana a la resolución objetivo
+                    parentFrame.setExtendedState(JFrame.NORMAL);
+                    parentFrame.setSize(resolucionAncho, resolucionAlto);
+                    parentFrame.setLocationRelativeTo(null);
+                    return true;
+                } catch (Exception ex) {
+                    return false;
+                }
+            }
+        } catch (Exception e) {
+            return false;
+        }
+    }
+    
     // Crea un JFrame borderless que ocupa toda la pantalla y devuelve el nuevo frame
     private JFrame createBorderlessFullscreen(GraphicsDevice gd) {
         Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
        JFrame frame = new JFrame("Proyecto Final");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setUndecorated(true);
-        frame.setResizable(false);
-        frame.getContentPane().add(new ventanaInicio(frame));
-        frame.setBounds(0, 0, screenSize.width, screenSize.height);
+         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+         frame.setUndecorated(true);
+         frame.setResizable(false);
+        // No podemos instanciar ventanaInicio aquí (puede no estar compilada), usar un placeholder
+         frame.getContentPane().add(new JPanel());
+         frame.setBounds(0, 0, screenSize.width, screenSize.height);
        frame.setVisible(true);
         // intentar setFullScreenWindow si es soportado para mejorar compatibilidad
-        try {
-            if (gd != null && gd.isFullScreenSupported()) gd.setFullScreenWindow(frame);
-        } catch (Exception ignore) {}
+         try {
+             if (gd != null && gd.isFullScreenSupported()) gd.setFullScreenWindow(frame);
+         } catch (Exception ignore) {}
        return frame;
    }
     
-    // Intenta cambiar la DisplayMode del GraphicsDevice a la resoluci�n seleccionada
+    // Intenta cambiar la DisplayMode del GraphicsDevice a la resolución seleccionada
     // Hacemos pública la función para permitir llamadas desde otros lugares (p.ej. ventanaInicio)
     // Intenta aplicar/restore DisplayMode. Retorna true si cambió el modo (o restauró), false si no
     public static boolean applyDisplayModeIfNeeded(GraphicsDevice gd) {
@@ -399,10 +543,16 @@ public class config extends JPanel {
     }
     
     private void restablecerValores() {
-        sliderMusica.setValue(50);
         sliderEfectos.setValue(50);
-        chkPantallaCompleta.setSelected(false);
-        comboResoluciones.setSelectedItem("1366x768");
+        comboResoluciones.setSelectedItem("1366x768"); // 🔹 Resolución base
+        
+        // Aplicar restablecimiento
+        Musica.setVolumenEfectos(50);
+        
+        // 🔹 RESETEAR ESCALA A BASE
+        resolucionAncho = 1366;
+        resolucionAlto = 768;
+        escalaManager.configurarEscala(resolucionAncho, resolucionAlto);
         
         JOptionPane.showMessageDialog(this, 
             "Valores restablecidos a predeterminados", 
@@ -419,16 +569,94 @@ public class config extends JPanel {
     }
     
     public static void mostrarVentanaConfig(JFrame parentFrame) {
-        JFrame configFrame = new JFrame("Configuraci�n");
+        // Mostrar la configuración como una superposición dentro del mismo JFrame (no crear otra ventana)
+        if (parentFrame == null) return;
+
         config configPanel = new config();
         configPanel.setParentFrame(parentFrame);
 
-        configFrame.setUndecorated(true);
-        configFrame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        configFrame.setSize(600, 450);
-        configFrame.setLocationRelativeTo(null);
-        configFrame.getContentPane().add(configPanel);
-        configFrame.setVisible(true);
+        JLayeredPane layered = parentFrame.getLayeredPane();
+
+        // Overlay que cubre toda la ventana con semitransparencia
+        JComponent overlay = new JComponent() {};
+        overlay.setLayout(null);
+        overlay.setOpaque(false);
+        overlay.setBounds(0, 0, parentFrame.getWidth(), parentFrame.getHeight());
+
+        // Fondo semitransparente
+        JPanel background = new JPanel();
+        background.setBackground(new Color(0,0,0,120));
+        background.setBounds(0,0, parentFrame.getWidth(), parentFrame.getHeight());
+        overlay.add(background);
+
+        // Panel contenedor (imitando diálogo)
+        JPanel container = new JPanel(null);
+        container.setSize(600, 450);
+        int cx = (parentFrame.getWidth() - 600) / 2;
+        int cy = (parentFrame.getHeight() - 450) / 2;
+        container.setBounds(cx, cy, 600, 450);
+        container.setOpaque(true);
+        container.setBackground(new Color(20,20,30));
+
+        // Añadir borde suave
+        container.setBorder(BorderFactory.createLineBorder(Color.WHITE, 2));
+
+        // Añadir el panel de configuración dentro del contenedor
+        configPanel.setBounds(0,0,600,450);
+        container.add(configPanel);
+        overlay.add(container);
+
+        // Manejar arrastre sobre el panel (ya tiene listeners en el panel, pero aseguramos)
+        final Point[] start = new Point[1];
+        container.addMouseListener(new MouseAdapter(){
+            public void mousePressed(MouseEvent e){ start[0] = e.getPoint(); }
+        });
+        container.addMouseMotionListener(new MouseMotionAdapter(){
+            public void mouseDragged(MouseEvent e){
+                Point loc = e.getLocationOnScreen();
+                SwingUtilities.convertPointFromScreen(loc, parentFrame);
+                int nx = loc.x - start[0].x;
+                int ny = loc.y - start[0].y;
+                container.setLocation(nx, ny);
+            }
+        });
+
+        // ESC: cerrar overlay
+        overlay.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE,0), "closeOverlay");
+        overlay.getActionMap().put("closeOverlay", new AbstractAction(){ public void actionPerformed(ActionEvent e){
+            layered.remove(overlay); layered.revalidate(); layered.repaint();
+        }});
+
+        // Set close callback for VOLVER button
+        configPanel.setOnCloseCallback(() -> {
+            layered.remove(overlay); layered.revalidate(); layered.repaint();
+        });
+
+        // If parent is resized, update overlay bounds and center the container
+        ComponentListener cl = new ComponentAdapter(){
+            @Override public void componentResized(ComponentEvent e){
+                overlay.setBounds(0,0,parentFrame.getWidth(), parentFrame.getHeight());
+                background.setBounds(0,0,parentFrame.getWidth(), parentFrame.getHeight());
+                int nx = (parentFrame.getWidth()-container.getWidth())/2;
+                int ny = (parentFrame.getHeight()-container.getHeight())/2;
+                container.setLocation(nx, ny);
+            }
+        };
+        parentFrame.addComponentListener(cl);
+
+        // Add overlay to layered pane
+        layered.add(overlay, JLayeredPane.POPUP_LAYER);
+        layered.revalidate(); layered.repaint();
+
+        // When overlay removed, unregister listener
+        // We'll attach a simple property change on container visibility to cleanup
+        container.addHierarchyListener(ev -> {
+            if ((ev.getChangeFlags() & HierarchyEvent.SHOWING_CHANGED) != 0) {
+                if (!container.isShowing()) {
+                    try { parentFrame.removeComponentListener(cl); } catch (Exception ignore) {}
+                }
+            }
+        });
     }
     
     @Override
