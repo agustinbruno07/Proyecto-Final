@@ -13,6 +13,9 @@ public class habitacion2 extends JPanel implements KeyListener {
     private JFrame parentFrame;
     private colisiones colisiones;
     
+    private java.util.Map<EstadoJuego.SpawnedObject, JLabel> objetosLabels = new java.util.HashMap<>();
+    private EstadoJuego.SpawnedObject nearbyObject = null;
+    
     // 🔹 VARIABLES PARA SISTEMA DE COLISIONES
     private boolean ignoreCollisions = false;
     private static final boolean DEBUG = false;
@@ -45,6 +48,9 @@ public class habitacion2 extends JPanel implements KeyListener {
         int startY = escalaManager.escalaY(BASE_PLAYER_Y);
         player = new jugador(startX, startY);
 
+        // Spawn de objetos en esta sección (garantizar 1 objeto)
+        spawnObjetosAleatorios();
+        
         addKeyListener(this);
         SwingUtilities.invokeLater(this::requestFocusInWindow);
 
@@ -89,11 +95,100 @@ public class habitacion2 extends JPanel implements KeyListener {
                                  (!ignoreCollisions ? "ON" : "OFF"));
             }
 
+            // comprobar recogidas cada frame
+            checkPickups();
+            
             verificarSalidaInferior();
 
             repaint();
         });
         gameLoop.start();
+    }
+    
+    // Spawn obligatorio (1 objeto por habitación)
+    private void spawnObjetosAleatorios() {
+        String scene = "habitacion2";
+        String[] objetos = new String[]{
+            "Bandana de Capuchino Assasino.png",
+            "Cascara de Chimpanzini Bananini.png",
+            "Palo de Tung Tung.png",
+            "Rueda de Boneca Ambalabu.png",
+            "zapa.png"
+        };
+
+        java.util.List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects(scene);
+        if (list.isEmpty()) {
+            int[] pos = SistemaSpawnJuego.obtenerSpawnSeguro(scene, colisiones, true);
+            if (pos == null) pos = SistemaSpawnJuego.obtenerSpawnAleatorio(scene, true);
+            if (pos == null) {
+                java.awt.Rectangle[] zonas = SistemaSpawnJuego.obtenerZonasSpawnParaObjetos(scene);
+                if (zonas != null && zonas.length > 0) {
+                    java.awt.Rectangle z = zonas[0];
+                    pos = new int[]{z.x + z.width/2, z.y + z.height/2};
+                }
+            }
+            if (pos != null) {
+                int idx = (int) (Math.random() * objetos.length);
+                list.add(new EstadoJuego.SpawnedObject(objetos[idx], pos[0], pos[1]));
+            }
+            EstadoJuego.setSpawnedObjects(scene, list);
+        }
+
+        // Crear labels
+        for (JLabel lbl : objetosLabels.values()) this.remove(lbl);
+        objetosLabels.clear();
+        int size = escalaManager.escalaUniforme(64);
+        for (EstadoJuego.SpawnedObject so : EstadoJuego.getSpawnedObjects(scene)) {
+            if (so.recogido) continue;
+            try {
+                Image img;
+                if (getClass().getResource("/resources/images/" + so.nombre) != null) {
+                    img = new ImageIcon(getClass().getResource("/resources/images/" + so.nombre)).getImage();
+                } else {
+                    img = new ImageIcon("src/resources/images/" + so.nombre).getImage();
+                }
+                Image scaled = img.getScaledInstance(size, size, Image.SCALE_SMOOTH);
+                JLabel itemLabel = new JLabel(new ImageIcon(scaled));
+                int x = escalaManager.escalaX(so.x) - size/2;
+                int y = escalaManager.escalaY(so.y) - size/2;
+                itemLabel.setBounds(x, y, size, size);
+                this.add(itemLabel);
+                objetosLabels.put(so, itemLabel);
+            } catch (Exception ex) {
+                System.out.println("No se pudo cargar objeto: " + so.nombre + " -> " + ex.getMessage());
+            }
+        }
+    }
+    
+    private void checkPickups() {
+        if (player == null) return;
+        Rectangle playerBounds = player.getBounds();
+        String scene = "habitacion2";
+        nearbyObject = null;
+        java.util.List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects(scene);
+        for (EstadoJuego.SpawnedObject so : list) {
+            if (so.recogido) continue;
+            JLabel lbl = objetosLabels.get(so);
+            if (lbl == null) continue;
+            if (playerBounds.intersects(lbl.getBounds())) {
+                nearbyObject = so;
+                break;
+            }
+        }
+    }
+    
+    private void collectNearbyObject() {
+        if (nearbyObject == null) return;
+        String scene = "habitacion2";
+        EstadoJuego.markObjectCollected(scene, nearbyObject);
+        JLabel lbl = objetosLabels.get(nearbyObject);
+        if (lbl != null) {
+            this.remove(lbl);
+            objetosLabels.remove(nearbyObject);
+        }
+        nearbyObject = null;
+        this.revalidate();
+        this.repaint();
     }
 
     private void verificarSalidaInferior() {
@@ -140,6 +235,9 @@ public class habitacion2 extends JPanel implements KeyListener {
         if (key == KeyEvent.VK_S || key == KeyEvent.VK_DOWN)  downPressed = true;
         if (key == KeyEvent.VK_A || key == KeyEvent.VK_LEFT)  leftPressed = true;
         if (key == KeyEvent.VK_D || key == KeyEvent.VK_RIGHT) rightPressed = true;
+        if (key == KeyEvent.VK_E) {
+            if (nearbyObject != null) collectNearbyObject();
+        }
     }
 
     @Override

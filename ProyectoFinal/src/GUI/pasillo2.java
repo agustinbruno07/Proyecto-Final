@@ -13,14 +13,14 @@ public class pasillo2 extends JPanel implements KeyListener {
     private JFrame parentFrame;
     private colisiones colisiones;
     
-    // 🔹 VARIABLES PARA SISTEMA DE COLISIONES
+    // ðŸ”¹ VARIABLES PARA SISTEMA DE COLISIONES
     private boolean ignoreCollisions = false;
   
-    // 🔹 RESOLUCIÓN BASE
+    // ðŸ”¹ RESOLUCIÃ“N BASE
     private static final int BASE_WIDTH = 1366;
     private static final int BASE_HEIGHT = 768;
     
-    // 🔹 POSICIÓN INICIAL BASE DEL JUGADOR
+    // ðŸ”¹ POSICIÃ“N INICIAL BASE DEL JUGADOR
     private static final int BASE_PLAYER_X = 650;
     private static final int BASE_PLAYER_Y = 680;
 
@@ -30,15 +30,15 @@ public class pasillo2 extends JPanel implements KeyListener {
         setFocusable(true);
         setFocusTraversalKeysEnabled(false);
 
-        // 🔹 CONFIGURAR KEY BINDINGS
+        // ðŸ”¹ CONFIGURAR KEY BINDINGS
         setupKeyBindings();
 
         fondo = new ImageIcon("src/resources/images/pasillo2 REWORK.png").getImage();
         
-        // 🔹 CARGAR MÁSCARA DE COLISIONES
+        // ðŸ”¹ CARGAR MÃ�SCARA DE COLISIONES
         colisiones = new colisiones("src/resources/images/pasillo2 MASCARA.png");
 
-        // 🔹 CREAR JUGADOR CON POSICIÓN ESCALADA
+        // ðŸ”¹ CREAR JUGADOR CON POSICIÃ“N ESCALADA
         int startX = escalaManager.escalaX(BASE_PLAYER_X);
         int startY = escalaManager.escalaY(BASE_PLAYER_Y);
         player = new jugador(startX, startY);
@@ -48,24 +48,24 @@ public class pasillo2 extends JPanel implements KeyListener {
 
 
         gameLoop = new Timer(16, e -> {
-            // 🔹 GUARDAR POSICIÓN ANTERIOR
+            // ðŸ”¹ GUARDAR POSICIÃ“N ANTERIOR
             int oldX = player.getX();
             int oldY = player.getY();
 
-            // 🔹 MOVER JUGADOR
+            // ðŸ”¹ MOVER JUGADOR
             if (upPressed)    player.moveUp();
             if (downPressed)  player.moveDown();
             if (leftPressed)  player.moveLeft();
             if (rightPressed) player.moveRight();
 
-            // 🔹 VERIFICAR COLISIONES Y REVERTIR SI HAY COLISIÓN
+            // ðŸ”¹ VERIFICAR COLISIONES Y REVERTIR SI HAY COLISIÃ“N
             if (!ignoreCollisions) {
                 if (colisiones.hayColision(player.getBounds())) {
                     player.setPosition(oldX, oldY);
                 }
             }
             System.out.println("Jugador Pos: (" + player.getX() + ", " + player.getY() + ")");
-            // 🔹 LIMITAR A LA VENTANA ACTUAL
+            // ðŸ”¹ LIMITAR A LA VENTANA ACTUAL
             Rectangle bounds = new Rectangle(0, 0, 
                     escalaManager.getAnchoActual(), 
                     escalaManager.getAltoActual());
@@ -88,15 +88,15 @@ public class pasillo2 extends JPanel implements KeyListener {
         setFocusable(true);
         setFocusTraversalKeysEnabled(false);
 
-        // 🔹 CONFIGURAR KEY BINDINGS
+        // ðŸ”¹ CONFIGURAR KEY BINDINGS
         setupKeyBindings();
 
         fondo = new ImageIcon("src/resources/images/pasillo2 REWORK.png").getImage();
         
-        // 🔹 CARGAR MÁSCARA DE COLISIONES
+        // ðŸ”¹ CARGAR MÃ�SCARA DE COLISIONES
         colisiones = new colisiones("src/resources/images/pasillo2 MASCARA.png");
 
-        // 🔹 CREAR JUGADOR EN LA POSICIÓN PROPORCIONADA (ya escalada por el panel anterior)
+        // ðŸ”¹ CREAR JUGADOR EN LA POSICIÃ“N PROPORCIONADA (ya escalada por el panel anterior)
         player = new jugador(entryX, entryY);
 
         addKeyListener(this);
@@ -165,7 +165,7 @@ public class pasillo2 extends JPanel implements KeyListener {
     private void irAComedor() {
         if (gameLoop != null && gameLoop.isRunning()) gameLoop.stop();
         
-        // Pasar la posición actual del jugador al comedor para que al volver se regrese al mismo punto
+        // Pasar la posiciÃ³n actual del jugador al comedor para que al volver se regrese al mismo punto
         comedor siguientePanel = new comedor(parentFrame, false, player.getX(), player.getY()); // false = desde pasillo2
         
         parentFrame.getContentPane().removeAll();
@@ -181,10 +181,10 @@ public class pasillo2 extends JPanel implements KeyListener {
         super.paintComponent(g);
         Graphics2D g2 = (Graphics2D) g;
         
-        // 🔹 DIBUJAR FONDO ESCALADO
+        // ðŸ”¹ DIBUJAR FONDO ESCALADO
         g2.drawImage(fondo, 0, 0, getWidth(), getHeight(), null);
         
-        // 🔹 DIBUJAR JUGADOR
+        // ðŸ”¹ DIBUJAR JUGADOR
         player.draw(g2);
     }
 
@@ -209,7 +209,7 @@ public class pasillo2 extends JPanel implements KeyListener {
     @Override
     public void keyTyped(KeyEvent e) {}
 
-    // 🔹 CONFIGURAR KEY BINDINGS (incluye toggle de colisiones con 'C')
+    // ðŸ”¹ CONFIGURAR KEY BINDINGS (incluye toggle de colisiones con 'C')
     private void setupKeyBindings() {
         InputMap im = this.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap am = this.getActionMap();
@@ -234,7 +234,7 @@ public class pasillo2 extends JPanel implements KeyListener {
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0, false), "right.press");
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, 0, true), "right.release");
 
-        // 🔹 TECLA 'C' PARA TOGGLE DE COLISIONES (útil para debug)
+        // ðŸ”¹ TECLA 'C' PARA TOGGLE DE COLISIONES (Ãºtil para debug)
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_C, 0, false), "toggle.collision");
         am.put("toggle.collision", new AbstractAction() {
             public void actionPerformed(ActionEvent e) {

@@ -12,6 +12,9 @@ public class pasillo1 extends JPanel implements KeyListener {
     private boolean upPressed, downPressed, leftPressed, rightPressed;
     private JFrame parentFrame;
     private colisiones colisiones;
+    private java.util.Map<EstadoJuego.SpawnedObject, JLabel> objetosLabels = new java.util.HashMap<>();
+    // objeto cercano que se puede recoger con 'E'
+    private EstadoJuego.SpawnedObject nearbyObject = null;
     
     // 🔹 VARIABLES PARA SISTEMA DE COLISIONES
     private boolean ignoreCollisions = false;
@@ -39,10 +42,14 @@ public class pasillo1 extends JPanel implements KeyListener {
         // 🔹 CARGAR MÁSCARA DE COLISIONES
         colisiones = new colisiones("src/resources/images/pasillo1 Mascara.png");
 
-        // 🔹 CREAR JUGADOR CON POSICIÓN ESCALADA
+        // 🔹 CREAR JUGADOR CON SPAWN RANDOM
+        // Crear jugador en posición fija o en entrada si provista
         int startX = escalaManager.escalaX(BASE_PLAYER_X);
         int startY = escalaManager.escalaY(BASE_PLAYER_Y);
         player = new jugador(startX, startY);
+        
+        // Spawn de objetos (solo objetos serán aleatorios)
+        spawnObjetosAleatorios();
 
         addKeyListener(this);
         SwingUtilities.invokeLater(this::requestFocusInWindow);
@@ -74,6 +81,9 @@ public class pasillo1 extends JPanel implements KeyListener {
             verificarSalidaInferior();
             verificarSalidaSuperior();
             
+            // comprobar recogidas cada frame
+            checkPickups();
+
             repaint();
         });
         gameLoop.start();
@@ -94,8 +104,17 @@ public class pasillo1 extends JPanel implements KeyListener {
         // 🔹 CARGAR MÁSCARA DE COLISIONES
         colisiones = new colisiones("src/resources/images/pasillo1 Mascara.png");
 
-        // 🔹 CREAR JUGADOR EN LA POSICIÓN PROPORCIONADA (ya escalada por el panel anterior)
-        player = new jugador(entryX, entryY);
+        // 🔹 CREAR JUGADOR: si se pasan coordenadas de entrada y son válidas, úsalas; si no, usa posición por defecto
+        if (entryX >= 0 && entryY >= 0) {
+            player = new jugador(entryX, entryY);
+        } else {
+            int startX = escalaManager.escalaX(BASE_PLAYER_X);
+            int startY = escalaManager.escalaY(BASE_PLAYER_Y);
+            player = new jugador(startX, startY);
+        }
+        
+        // Spawn de objetos en posiciones aleatorias (solo objetos)
+        spawnObjetosAleatorios();
 
         addKeyListener(this);
         SwingUtilities.invokeLater(this::requestFocusInWindow);
@@ -123,6 +142,9 @@ public class pasillo1 extends JPanel implements KeyListener {
             verificarSalidaInferior();
             verificarSalidaSuperior();
             
+            // comprobar recogidas cada frame
+            checkPickups();
+
             repaint();
         });
         gameLoop.start();
@@ -191,6 +213,11 @@ public class pasillo1 extends JPanel implements KeyListener {
         if (key == KeyEvent.VK_S || key == KeyEvent.VK_DOWN)  downPressed = true;
         if (key == KeyEvent.VK_A || key == KeyEvent.VK_LEFT)  leftPressed = true;
         if (key == KeyEvent.VK_D || key == KeyEvent.VK_RIGHT) rightPressed = true;
+        if (key == KeyEvent.VK_E) {
+            if (nearbyObject != null) {
+                collectNearbyObject();
+            }
+        }
     }
 
     @Override
@@ -265,5 +292,104 @@ public class pasillo1 extends JPanel implements KeyListener {
         am.put("right.release", new AbstractAction() {
             public void actionPerformed(ActionEvent e) { rightPressed = false; }
         });
+    }
+    
+    // Método para spawnear objetos aleatoriamente en las zonas definidas por SistemaSpawnJuego
+    private void spawnObjetosAleatorios() {
+        String scene = "pasillo1";
+        String[] objetos = new String[]{
+            "Bandana de Capuchino Assasino.png",
+            "Cascara de Chimpanzini Bananini.png",
+            "Palo de Tung Tung.png",
+            "Rueda de Boneca Ambalabu.png",
+            "zapa.png"
+        };
+
+        java.util.List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects(scene);
+        if (list.isEmpty()) {
+            // Solo un objeto por sección: intentar obtener una posición segura para un objeto
+            int[] pos = SistemaSpawnJuego.obtenerSpawnSeguro(scene, colisiones, true);
+            if (pos == null) {
+                // intentar un spawn aleatorio dentro de zonas permitidas
+                pos = SistemaSpawnJuego.obtenerSpawnAleatorio(scene, true);
+            }
+            if (pos == null) {
+                // última opción: colocar en el centro de la primera zona permitida (forzar aparición)
+                java.awt.Rectangle[] zonas = SistemaSpawnJuego.obtenerZonasSpawnParaObjetos(scene);
+                if (zonas != null && zonas.length > 0) {
+                    java.awt.Rectangle z = zonas[0];
+                    pos = new int[]{z.x + z.width/2, z.y + z.height/2};
+                }
+            }
+            if (pos != null) {
+                // seleccionar un objeto (aleatorio entre la lista)
+                int idx = (int) (Math.random() * objetos.length);
+                list.add(new EstadoJuego.SpawnedObject(objetos[idx], pos[0], pos[1]));
+            }
+             EstadoJuego.setSpawnedObjects(scene, list);
+         }
+
+        // Limpiar labels antiguos
+        for (JLabel lbl : objetosLabels.values()) {
+            this.remove(lbl);
+        }
+        objetosLabels.clear();
+
+        // Agrandar un poco las imágenes de los objetos
+        int size = escalaManager.escalaUniforme(64);
+        for (EstadoJuego.SpawnedObject so : list) {
+            if (so.recogido) continue;
+            try {
+                Image img;
+                if (getClass().getResource("/resources/images/" + so.nombre) != null) {
+                    img = new ImageIcon(getClass().getResource("/resources/images/" + so.nombre)).getImage();
+                } else {
+                    img = new ImageIcon("src/resources/images/" + so.nombre).getImage();
+                }
+                Image scaled = img.getScaledInstance(size, size, Image.SCALE_SMOOTH);
+                JLabel itemLabel = new JLabel(new ImageIcon(scaled));
+                int x = escalaManager.escalaX(so.x) - size/2;
+                int y = escalaManager.escalaY(so.y) - size/2;
+                itemLabel.setBounds(x, y, size, size);
+                this.add(itemLabel);
+                objetosLabels.put(so, itemLabel);
+            } catch (Exception ex) {
+                System.out.println("No se pudo cargar objeto: " + so.nombre + " -> " + ex.getMessage());
+            }
+        }
+    }
+    
+    // Método para comprobar recogidas (pickups) en la posición actual del jugador
+    private void checkPickups() {
+        if (player == null) return;
+        Rectangle playerBounds = player.getBounds();
+        String scene = "pasillo1";
+        nearbyObject = null;
+        java.util.List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects(scene);
+        for (EstadoJuego.SpawnedObject so : list) {
+            if (so.recogido) continue;
+            JLabel lbl = objetosLabels.get(so);
+            if (lbl == null) continue;
+            if (playerBounds.intersects(lbl.getBounds())) {
+                nearbyObject = so;
+                System.out.println("Cerca de objeto: presiona E para recoger");
+                break;
+            }
+        }
+    }
+
+    private void collectNearbyObject() {
+        if (nearbyObject == null) return;
+        String scene = "pasillo1";
+        EstadoJuego.markObjectCollected(scene, nearbyObject);
+        JLabel lbl = objetosLabels.get(nearbyObject);
+        if (lbl != null) {
+            this.remove(lbl);
+            objetosLabels.remove(nearbyObject);
+        }
+        nearbyObject = null;
+        this.revalidate();
+        this.repaint();
+        System.out.println("Evidencia recogida: total=" + EstadoJuego.getObjetosRecogidos());
     }
 }

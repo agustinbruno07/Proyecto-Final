@@ -21,10 +21,8 @@ public class TimerOverlay extends JComponent {
         timerLabel.setOpaque(true);
         add(timerLabel);
 
-        // Ajustar tamaño inicial y posición
         updateBounds();
 
-        // Listener para redimensionado del frame
         parentFrame.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -37,7 +35,6 @@ public class TimerOverlay extends JComponent {
             }
         });
 
-        // Iniciar temporizador global y timer que actualiza la etiqueta
         EstadoJuego.startTimer();
         updateTimer = new Timer(1000, e -> timerLabel.setText(EstadoJuego.getFormattedElapsed()));
         updateTimer.setInitialDelay(0);

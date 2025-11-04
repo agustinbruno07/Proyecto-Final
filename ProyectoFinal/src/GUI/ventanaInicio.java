@@ -33,14 +33,12 @@ public class ventanaInicio extends JPanel {
         setBackground(Color.BLACK);
         imagenFondo = null;
         
-        // Obtener dimensiones iniciales
         Dimension parentSize = parentFrame.getSize();
         int width = parentSize.width <= 0 ? config.getResolucionAncho() : parentSize.width;
         int height = parentSize.height <= 0 ? config.getResolucionAlto() : parentSize.height;
         
         if (width > 0 && height > 0) setPreferredSize(new Dimension(width, height));
 
-        // Listener para resize
         this.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -52,7 +50,6 @@ public class ventanaInicio extends JPanel {
         });
     }
 
-    // 🔹 MÉTODO PÚBLICO PARA INICIAR CARGA DESPUÉS DE QUE LA VENTANA SEA VISIBLE
     public void iniciarCarga() {
         SwingUtilities.invokeLater(() -> {
             Dimension d = getSize();
@@ -65,11 +62,11 @@ public class ventanaInicio extends JPanel {
             @Override
             protected Void doInBackground() throws Exception {
                 // Calcular escalado
-                final int BASE_W = 1920;
-                final int BASE_H = 1080;
+                final int BASE_W = 1366;
+                final int BASE_H = 768;
                 double scale = Math.min((double) width / BASE_W, (double) height / BASE_H);
                 if (scale <= 0) scale = 1.0;
-                int buttonWidth = Math.max(120, (int) Math.round(407 * scale));
+                int buttonWidth = Math.max(120, (int) Math.round(300 * scale));
                 int buttonHeight = Math.max(32, (int) Math.round(46 * scale));
 
                 // Cargar fondo
@@ -83,7 +80,7 @@ public class ventanaInicio extends JPanel {
                     imagenFondo = null;
                 }
 
-                // Cargar y escalar iconos
+
                 cargarIcono("config", buttonWidth, buttonHeight);
                 cargarIcono("inicio", buttonWidth, buttonHeight);
                 cargarIcono("salir", buttonWidth, buttonHeight);
@@ -97,7 +94,6 @@ public class ventanaInicio extends JPanel {
                 imagenesListas = true;
                 createOrUpdateUI(width, height);
                 
-                // 🔹 REPRODUCIR MÚSICA DE FONDO CUANDO TODO ESTÉ LISTO
                 try {
                     Musica.reproducir("src/resources/sonidos/musicaFondo.wav");
                 } catch (Exception e) {
@@ -132,7 +128,7 @@ public class ventanaInicio extends JPanel {
         if (width > 0 && height > 0) setPreferredSize(new Dimension(width, height));
 
         // Escalado relativo
-        int buttonWidth = escalaManager.escalaAncho(407);
+        int buttonWidth = escalaManager.escalaAncho(300);
         int buttonHeight = escalaManager.escalaAlto(46);
         int startX = (width - buttonWidth) / 2;
         int startY = escalaManager.escalaY(345); // ~45% de 768
@@ -150,7 +146,6 @@ public class ventanaInicio extends JPanel {
 
         btnIniciar.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                // 🔹 SONIDO DE BOTÓN
                 Musica.reproducir("src/resources/sonidos/inicio.wav");
                 parentFrame.getContentPane().removeAll();
                 parentFrame.getContentPane().add(new dialogo1(parentFrame)); 
@@ -172,7 +167,6 @@ public class ventanaInicio extends JPanel {
 
         btnConfig.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                // 🔹 SONIDO DE BOTÓN
                 Musica.reproducir("src/resources/sonidos/inicio.wav");
                 config.mostrarVentanaConfig(parentFrame);
             }
@@ -211,7 +205,6 @@ public class ventanaInicio extends JPanel {
 
         btnSalir.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
-                // 🔹 SONIDO DE BOTÓN
                 Musica.reproducir("src/resources/sonidos/inicio.wav");
                 System.exit(0);
             }
@@ -242,7 +235,6 @@ public class ventanaInicio extends JPanel {
         int width = config.getResolucionAncho();
         int height = config.getResolucionAlto();
         escalaManager.configurarEscala(width, height);
-        // 🔹 CREAR PANEL SIN CARGAR IMÁGENES AÚN
         ventanaInicio panel = new ventanaInicio(frame);
         
         if (pantalla) {
@@ -253,10 +245,8 @@ public class ventanaInicio extends JPanel {
             frame.getContentPane().add(panel);
             frame.pack();
             
-            // 🔹 HACER VISIBLE PRIMERO
             frame.setVisible(true);
 
-            // No crear overlay aquí: lo mostramos después de los diálogos, en el mapa jugable
             
             if (gd.isFullScreenSupported()) {
                 try {
@@ -278,15 +268,12 @@ public class ventanaInicio extends JPanel {
             frame.pack();
             frame.setLocationRelativeTo(null);
             
-            // 🔹 HACER VISIBLE PRIMERO
             frame.setVisible(true);
 
-            // No crear overlay aquí: lo mostramos después de los diálogos, en el mapa jugable
         }
         
         frame.requestFocus();
         
-        // 🔹 AHORA SÍ INICIAR LA CARGA DE IMÁGENES (ventana ya visible)
         panel.iniciarCarga();
     }
 }

@@ -8,9 +8,13 @@ public class CasaPrincipal extends JPanel implements KeyListener {
 
     private jugador player;
     private Image fondo;
-    private Timer gameLoop;
+    private javax.swing.Timer gameLoop;
     private colisiones colisiones;
     private boolean upPressed, downPressed, leftPressed, rightPressed;
+    private java.util.Map<EstadoJuego.SpawnedObject, JLabel> objetosLabels = new java.util.HashMap<>();
+    private javax.swing.Timer pickupTimer;
+    // objeto cercano que se puede recoger con 'E'
+    private EstadoJuego.SpawnedObject nearbyObject = null;
 
     private static final int BASE_WIDTH = 1366;
     private static final int BASE_HEIGHT = 768;
@@ -57,7 +61,7 @@ public class CasaPrincipal extends JPanel implements KeyListener {
     private boolean estaEnPuertaPasillo1 = false;
     private boolean estaEnPuertaPasillo2 = false;
     private JLabel mensajeLabel;
-    private Timer mensajeTimer;
+    private javax.swing.Timer mensajeTimer;
     private JFrame parentFrame;
 
     // 🔹 CONSTRUCTOR
@@ -82,14 +86,23 @@ public class CasaPrincipal extends JPanel implements KeyListener {
         fondo = new ImageIcon("src/resources/images/casaPrincipal.png").getImage();
         colisiones = new colisiones("src/resources/images/casaPrincipalColisiones.png");
 
-        // 🔹 CREAR JUGADOR CON POSICIÓN PERSONALIZADA
-        double scaleX = (double) escalaManager.getAnchoActual() / BASE_WIDTH;
-        double scaleY = (double) escalaManager.getAltoActual() / BASE_HEIGHT;
-        
-        int startX = (int) Math.round(baseX * scaleX);
-        int startY = (int) Math.round(baseY * scaleY);
+        // 🔹 SISTEMA DE SPAWN RANDOM
+        // Crear jugador en posición fija o en coordenadas dadas (no usar spawn random para jugador)
+        int startX, startY;
+        if (baseX >= 0 && baseY >= 0) {
+            double scaleX = (double) escalaManager.getAnchoActual() / BASE_WIDTH;
+            double scaleY = (double) escalaManager.getAltoActual() / BASE_HEIGHT;
+            startX = (int) Math.round(baseX * scaleX);
+            startY = (int) Math.round(baseY * scaleY);
+        } else {
+            startX = escalaManager.escalaX(BASE_PLAYER_X);
+            startY = escalaManager.escalaY(BASE_PLAYER_Y);
+        }
         player = new jugador(startX, startY);
-       
+        
+        // Spawn de objetos aleatorios (solo objetos)
+        spawnObjetosAleatorios();
+        
         // Configurar mensaje para interacciones
         mensajeLabel = new JLabel("", JLabel.CENTER);
         mensajeLabel.setFont(new Font("Arial", Font.BOLD, escalaManager.escalaFuente(20)));
@@ -99,16 +112,16 @@ public class CasaPrincipal extends JPanel implements KeyListener {
         mensajeLabel.setVisible(false);
         add(mensajeLabel);
 
-        mensajeTimer = new Timer(2000, e -> {
+        mensajeTimer = new javax.swing.Timer(2000, e -> {
             mensajeLabel.setVisible(false);
-            ((Timer)e.getSource()).stop();
+            ((javax.swing.Timer)e.getSource()).stop();
         });
         mensajeTimer.setRepeats(false);
 
         addKeyListener(this);
         SwingUtilities.invokeLater(this::requestFocusInWindow);
 
-        gameLoop = new Timer(16, e -> {
+        gameLoop = new javax.swing.Timer(16, e -> {
             int oldX = player.getX();
             int oldY = player.getY();
 
@@ -138,6 +151,9 @@ public class CasaPrincipal extends JPanel implements KeyListener {
             repaint();
         });
         gameLoop.start();
+        // iniciar timer para comprobar pickups
+        pickupTimer = new javax.swing.Timer(120, ev -> checkPickups());
+        pickupTimer.start();
 
         // Mostrar mensaje al entrar a la casa principal solo la primera vez
         actualizarPosicionLabels();
@@ -300,9 +316,6 @@ public class CasaPrincipal extends JPanel implements KeyListener {
         
         // 🔹 DIBUJAR JUGADOR
         player.draw(g);
-        
-       
-        
     }
 
     @Override
@@ -313,6 +326,11 @@ public class CasaPrincipal extends JPanel implements KeyListener {
             case KeyEvent.VK_A, KeyEvent.VK_LEFT  -> leftPressed = true;
             case KeyEvent.VK_D, KeyEvent.VK_RIGHT -> rightPressed = true;
             case KeyEvent.VK_E -> {
+                // Priorizar recoger objetos cercanos
+                if (nearbyObject != null) {
+                    collectNearbyObject();
+                    break;
+                }
                 if (estaEnPuerta1) {
                     cambiarAHabitacion1();
                 } else if (estaEnPuerta2) {
@@ -338,4 +356,112 @@ public class CasaPrincipal extends JPanel implements KeyListener {
 
     @Override
     public void keyTyped(KeyEvent e) {}
+
+    // Método para spawnear objetos aleatoriamente en CasaPrincipal
+     private void spawnObjetosAleatorios() {
+        String scene = "casaprincipal";
+        String[] objetos = new String[]{
+            "Bandana de Capuchino Assasino.png",
+            "Cascara de Chimpanzini Bananini.png",
+            "Palo de Tung Tung.png",
+            "Rueda de Boneca Ambalabu.png",
+            "zapa.png"
+        };
+
+        java.util.List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects(scene);
+        if (list.isEmpty()) {
+            // Solo un objeto por sección: intentar obtener una posición segura para un objeto
+            int[] pos = SistemaSpawnJuego.obtenerSpawnSeguro(scene, colisiones, true);
+            if (pos == null) {
+                pos = SistemaSpawnJuego.obtenerSpawnAleatorio(scene, true);
+            }
+            if (pos == null) {
+                java.awt.Rectangle[] zonas = SistemaSpawnJuego.obtenerZonasSpawnParaObjetos(scene);
+                if (zonas != null && zonas.length > 0) {
+                    java.awt.Rectangle z = zonas[0];
+                    pos = new int[]{z.x + z.width/2, z.y + z.height/2};
+                }
+            }
+            if (pos != null) {
+                int idx = (int) (Math.random() * objetos.length);
+                list.add(new EstadoJuego.SpawnedObject(objetos[idx], pos[0], pos[1]));
+            }
+             EstadoJuego.setSpawnedObjects(scene, list);
+         }
+
+        // Agrandar un poco las imágenes de los objetos
+        int size = escalaManager.escalaUniforme(64);
+        for (EstadoJuego.SpawnedObject so : list) {
+            if (so.recogido) continue;
+            if (objetosLabels.containsKey(so)) continue;
+            try {
+                Image img;
+                if (getClass().getResource("/resources/images/" + so.nombre) != null) {
+                    img = new ImageIcon(getClass().getResource("/resources/images/" + so.nombre)).getImage();
+                } else {
+                    img = new ImageIcon("src/resources/images/" + so.nombre).getImage();
+                }
+                Image scaled = img.getScaledInstance(size, size, Image.SCALE_SMOOTH);
+                JLabel itemLabel = new JLabel(new ImageIcon(scaled));
+                int x = escalaManager.escalaX(so.x) - size/2;
+                int y = escalaManager.escalaY(so.y) - size/2;
+                itemLabel.setBounds(x, y, size, size);
+                this.add(itemLabel);
+                objetosLabels.put(so, itemLabel);
+            } catch (Exception ex) {
+                System.out.println("No se pudo cargar objeto: " + so.nombre + " -> " + ex.getMessage());
+            }
+        }
+    }
+
+    private void checkPickups() {
+        if (player == null) return;
+        Rectangle jugadorBounds = player.getBounds();
+        String scene = "casaprincipal";
+        nearbyObject = null;
+        java.util.List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects(scene);
+        for (EstadoJuego.SpawnedObject so : list) {
+            if (so.recogido) continue;
+            JLabel lbl = objetosLabels.get(so);
+            if (lbl == null) continue;
+            Rectangle objBounds = new Rectangle(lbl.getX(), lbl.getY(), lbl.getWidth(), lbl.getHeight());
+            if (jugadorBounds.intersects(objBounds)) {
+                nearbyObject = so;
+                mostrarMensajeDuracion("Presiona E para recoger", 1000);
+                break;
+            }
+        }
+    }
+
+    private void collectNearbyObject() {
+        if (nearbyObject == null) return;
+        String scene = "casaprincipal";
+        EstadoJuego.markObjectCollected(scene, nearbyObject);
+        JLabel lbl = objetosLabels.get(nearbyObject);
+        if (lbl != null) {
+            this.remove(lbl);
+            objetosLabels.remove(nearbyObject);
+        }
+        nearbyObject = null;
+        this.revalidate();
+        this.repaint();
+        mostrarMensajeDuracion("Evidencia recogida", 1200);
+        System.out.println("Evidencia recogida: total=" + EstadoJuego.getObjetosRecogidos());
+    }
+
+    // Mostrar un mensaje temporal (ms) usando el mensajeLabel existente
+    private void mostrarMensajeDuracion(String mensaje, int ms) {
+        if (mensajeTimer != null && mensajeTimer.isRunning()) {
+            mensajeTimer.stop();
+        }
+        mensajeLabel.setText(mensaje);
+        mensajeLabel.setVisible(true);
+        javax.swing.Timer tempTimer = new javax.swing.Timer(ms, e -> {
+            mensajeLabel.setVisible(false);
+            ((javax.swing.Timer)e.getSource()).stop();
+        });
+        tempTimer.setRepeats(false);
+        tempTimer.start();
+    }
+
 }

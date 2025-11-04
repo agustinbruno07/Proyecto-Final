@@ -22,7 +22,12 @@ public class dialogo1 extends JPanel {
 
         // Cargar la primera imagen del diálogo
         imagenDialogo = new ImageIcon("src/resources/images/dialogo1.png").getImage();
-        
+        //Reproducir ruidos de pajaros
+        try {
+            Musica.reproducir("src/resources/sonidos/birdSound.wav");
+        } catch (Exception e) {
+            System.err.println("Error al reproducir música de fondo: " + e.getMessage());
+        }
         // Fade in
         fadeTimer = new Timer(30, e -> {
             alpha += 0.02f;
@@ -43,7 +48,7 @@ public class dialogo1 extends JPanel {
                 }
             }
         });
-
+         
         setFocusable(true);
         addKeyListener(new KeyAdapter() {
             @Override

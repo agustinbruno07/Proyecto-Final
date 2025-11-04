@@ -27,11 +27,18 @@ public class casaIzquierda extends JPanel implements KeyListener {
     private static final int BASE_COFRE_W = 100;
     private static final int BASE_COFRE_H = 100;
     
+    // 🔹 COORDENADAS BASE PARA TRANSICIÓN AL LABERINTO
+    private static final int BASE_LABERINTO_X = 20;
+    private static final int BASE_LABERINTO_Y = 195;
+    private static final int BASE_LABERINTO_W = 50;
+    private static final int BASE_LABERINTO_H = 50;
+    
     // 🔹 POSICIÓN INICIAL BASE
     private static final int BASE_PLAYER_X = 300;
     private static final int BASE_PLAYER_Y = 650;
 
-    public casaIzquierda(JFrame parentFrame) {
+    // 🔹 CONSTRUCTOR CON COORDENADAS PERSONALIZADAS
+    public casaIzquierda(JFrame parentFrame, int baseX, int baseY) {
         setLayout(null);
         setFocusable(true);
         setFocusTraversalKeysEnabled(false);
@@ -46,9 +53,9 @@ public class casaIzquierda extends JPanel implements KeyListener {
             imagenCofre = new ImageIcon("src/resources/images/cofre.png").getImage();
         }
 
-        // 🔹 CREAR JUGADOR CON POSICIÓN ESCALADA
-        int startX = escalaManager.escalaX(BASE_PLAYER_X);
-        int startY = escalaManager.escalaY(BASE_PLAYER_Y);
+        // 🔹 USAR LAS COORDENADAS PROPORCIONADAS EN LUGAR DE LAS FIJAS
+        int startX = escalaManager.escalaX(baseX);
+        int startY = escalaManager.escalaY(baseY);
         player = new jugador(startX, startY);
 
         mensajeLabel = new JLabel("", JLabel.CENTER);
@@ -69,7 +76,6 @@ public class casaIzquierda extends JPanel implements KeyListener {
         SwingUtilities.invokeLater(this::requestFocusInWindow);
 
         gameLoop = new Timer(16, e -> {
-            // 🔹 ACTUALIZAR POSICIÓN DEL MENSAJE
             actualizarPosicionLabels();
 
             int oldX = player.getX();
@@ -84,20 +90,22 @@ public class casaIzquierda extends JPanel implements KeyListener {
                 player.setPosition(oldX, oldY);
             }
 
-            // 🔹 LIMITAR A LA VENTANA ACTUAL
             Rectangle bounds = new Rectangle(0, 0, 
                     escalaManager.getAnchoActual(), 
                     escalaManager.getAltoActual());
             player.clampTo(bounds);
             
             verificarPosicionCofre();
-            
-            // 🔹 VERIFICAR SI TOCA LA PARTE INFERIOR
+            verificarTransicionLaberinto(); 
             verificarSalidaInferior();
             
             repaint();
         });
         gameLoop.start();
+    }
+
+    public casaIzquierda(JFrame parentFrame) {
+        this(parentFrame, BASE_PLAYER_X, BASE_PLAYER_Y);
     }
 
     private void actualizarPosicionLabels() {
@@ -108,7 +116,6 @@ public class casaIzquierda extends JPanel implements KeyListener {
         mensajeLabel.setBounds(msgX, msgY, msgW, msgH);
     }
 
-    // 🔹 NUEVO MÉTODO: Verificar si toca la parte inferior del panel
     private void verificarSalidaInferior() {
         Rectangle jugadorBounds = player.getBounds();
         int panelHeight = getHeight();
@@ -121,7 +128,6 @@ public class casaIzquierda extends JPanel implements KeyListener {
     private void verificarPosicionCofre() {
         Rectangle jugadorBounds = player.getBounds();
         
-        // 🔹 ESCALAR ÁREA DEL COFRE
         int cofreX = escalaManager.escalaX(BASE_COFRE_X);
         int cofreY = escalaManager.escalaY(BASE_COFRE_Y);
         int cofreW = escalaManager.escalaAncho(BASE_COFRE_W);
@@ -129,6 +135,37 @@ public class casaIzquierda extends JPanel implements KeyListener {
         
         Rectangle cofreBounds = new Rectangle(cofreX, cofreY, cofreW, cofreH);
         estaEnCofre = jugadorBounds.intersects(cofreBounds);
+    }
+
+    private void verificarTransicionLaberinto() {
+        Rectangle jugadorBounds = player.getBounds();
+        
+        int laberintoX = escalaManager.escalaX(BASE_LABERINTO_X);
+        int laberintoY = escalaManager.escalaY(BASE_LABERINTO_Y);
+        int laberintoW = escalaManager.escalaAncho(BASE_LABERINTO_W);
+        int laberintoH = escalaManager.escalaAlto(BASE_LABERINTO_H);
+        
+        Rectangle laberintoBounds = new Rectangle(laberintoX, laberintoY, laberintoW, laberintoH);
+        
+        if (jugadorBounds.intersects(laberintoBounds)) {
+            cambiarALaberinto();
+        }
+    }
+
+    private void cambiarALaberinto() {
+        if (gameLoop != null && gameLoop.isRunning()) gameLoop.stop();
+        if (mensajeTimer != null && mensajeTimer.isRunning()) mensajeTimer.stop();
+
+        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+        if (parentFrame != null) {
+            laberinto laberintoPanel = new laberinto(parentFrame); 
+
+            parentFrame.getContentPane().removeAll();
+            parentFrame.getContentPane().add(laberintoPanel);
+            parentFrame.revalidate();
+            parentFrame.repaint();
+            SwingUtilities.invokeLater(laberintoPanel::requestFocusInWindow);
+        }
     }
 
     private void abrirCofre() {
