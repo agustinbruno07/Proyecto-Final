@@ -5,23 +5,46 @@ import java.io.File;
 import javax.imageio.ImageIO;
 
 public class colisiones {
-    
+
     private BufferedImage mascaraColision;
     private boolean obstacleIsBright = true;
     private static final int BRIGHTNESS_THRESHOLD = 128;
-    
+
+    private double factorMascaraDesdeBaseX = 1.0;
+    private double factorMascaraDesdeBaseY = 1.0;
+
     // 🔹 RESOLUCIÓN BASE DE LA MÁSCARA (debe coincidir con la resolución base del juego)
     private static final int BASE_MASCARA_WIDTH = 1366;
     private static final int BASE_MASCARA_HEIGHT = 768;
-    
+
     public colisiones(String rutaMascara) {
         try {
-            File archivo = new File(rutaMascara);
+            String rutaPreferida = escalaManager.resolverRecursoPorResolucion(
+                escalaManager.getAnchoActual(),
+                escalaManager.getAltoActual(),
+                rutaMascara
+            );
+
+            File archivo = new File(rutaPreferida);
+            if (!archivo.exists()) {
+                rutaPreferida = escalaManager.resolverRecursoPorResolucion(rutaMascara);
+                archivo = new File(rutaPreferida);
+            }
+
+            if (!archivo.exists()) {
+                archivo = new File(rutaMascara);
+                rutaPreferida = archivo.getPath();
+            }
+
             mascaraColision = ImageIO.read(archivo);
-            
+
             if (mascaraColision != null) {
+                factorMascaraDesdeBaseX = (double) mascaraColision.getWidth() / BASE_MASCARA_WIDTH;
+                factorMascaraDesdeBaseY = (double) mascaraColision.getHeight() / BASE_MASCARA_HEIGHT;
+
                 System.out.println("✅ Máscara de colisión cargada: " + mascaraColision.getWidth() + "x" + mascaraColision.getHeight());
-                
+                System.out.println("[colisiones] Ruta preferida: " + rutaPreferida + " (original: " + rutaMascara + ")");
+
                 // Detectar automáticamente si la máscara marca obstáculos con píxeles claros o oscuros
                 int w = mascaraColision.getWidth();
                 int h = mascaraColision.getHeight();
@@ -75,18 +98,28 @@ public class colisiones {
             return false;
         }
 
-        // 🔹 CALCULAR ESCALA ENTRE LA VENTANA ACTUAL Y LA MÁSCARA BASE
-        // La máscara está hecha para la resolución base (1366x768)
-        // El jugadorBounds viene en coordenadas de la resolución actual
-        
-        double escalaX = (double) mascaraColision.getWidth() / escalaManager.getAnchoActual();
-        double escalaY = (double) mascaraColision.getHeight() / escalaManager.getAltoActual();
+        if (mascaraColision.getWidth() <= 0 || mascaraColision.getHeight() <= 0) {
+            return false;
+        }
 
-        // 🔹 CONVERTIR COORDENADAS DEL JUGADOR A COORDENADAS DE LA MÁSCARA
-        int xMascara = (int) Math.round(jugadorBounds.x * escalaX);
-        int yMascara = (int) Math.round(jugadorBounds.y * escalaY);
-        int anchoMascara = Math.max(1, (int) Math.round(jugadorBounds.width * escalaX));
-        int altoMascara = Math.max(1, (int) Math.round(jugadorBounds.height * escalaY));
+        escalaManager.ResolucionPerfil perfil = escalaManager.getResolucionActual();
+        double factorBaseAX = (perfil != null) ? perfil.getEscalaX() : (double) escalaManager.getAnchoActual() / BASE_MASCARA_WIDTH;
+        double factorBaseAY = (perfil != null) ? perfil.getEscalaY() : (double) escalaManager.getAltoActual() / BASE_MASCARA_HEIGHT;
+
+        double actualABaseX = factorBaseAX == 0 ? 1.0 : 1.0 / factorBaseAX;
+        double actualABaseY = factorBaseAY == 0 ? 1.0 : 1.0 / factorBaseAY;
+
+        int baseX = (int) Math.round(jugadorBounds.x * actualABaseX);
+        int baseY = (int) Math.round(jugadorBounds.y * actualABaseY);
+        int baseWidth = Math.max(1, (int) Math.round(jugadorBounds.width * actualABaseX));
+        int baseHeight = Math.max(1, (int) Math.round(jugadorBounds.height * actualABaseY));
+
+        // 🔹 CALCULAR ESCALA ENTRE LA VENTANA ACTUAL Y LA MÁSCARA BASE
+        // La máscara puede existir en distintas resoluciones; convertimos desde la resolución base
+        int xMascara = (int) Math.round(baseX * factorMascaraDesdeBaseX);
+        int yMascara = (int) Math.round(baseY * factorMascaraDesdeBaseY);
+        int anchoMascara = Math.max(1, (int) Math.round(baseWidth * factorMascaraDesdeBaseX));
+        int altoMascara = Math.max(1, (int) Math.round(baseHeight * factorMascaraDesdeBaseY));
 
         // Verificar cada píxel dentro del área del jugador
         for (int x = xMascara; x < xMascara + anchoMascara; x++) {

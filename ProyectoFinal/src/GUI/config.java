@@ -3,10 +3,13 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.DisplayMode;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 public class config extends JPanel {
     private Image imagenFondo;
-    
+
     private static int volumenEfectos = 50;
     private static boolean pantallaCompleta = true;
     private static String dificultad = "Normal";
@@ -21,6 +24,12 @@ public class config extends JPanel {
     private JButton btnGuardar;
     private JButton btnRestablecer;
     private JButton btnVolver;
+
+    private static final String[] FONDOS_CANDIDATOS = {
+        "src/resources/images/fondo_config.png",
+        "src/resources/images/config.png",
+        "src/resources/images/fondo.png"
+    };
     
     private JFrame parentFrame;
     // Referencia opcional al diálogo modal que contiene este panel
@@ -41,12 +50,6 @@ public class config extends JPanel {
         originalResolucionAncho = resolucionAncho;
         originalResolucionAlto = resolucionAlto;
 
-        try {
-            imagenFondo = new ImageIcon("src/resources/images/fondo_config.png").getImage();
-        } catch (Exception e) {
-            imagenFondo = null;
-        }
-        
         // Configurar componentes con posiciones fijas pero en una ventana de tamaño fijo
         JLabel lblTitulo = new JLabel("CONFIGURACION", JLabel.CENTER);
         lblTitulo.setBounds(0, 20, 600, 40);
@@ -97,12 +100,31 @@ public class config extends JPanel {
         lblResolTexto.setForeground(Color.WHITE);
         add(lblResolTexto);
         
-        String[] baseRes = {
-        	    "1920x1080",  // Full HD
-        	    "1366x768",   // Base (HD Ready)
-        	    "1280x720"    // HD
-        	};
-        comboResoluciones = new JComboBox<>(baseRes);
+        List<String> resolucionesDisponibles = new ArrayList<>();
+        String[] ordenPreferido = {
+            "1920x1080",
+            escalaManager.getResolucionBaseKey(),
+            "1280x720"
+        };
+
+        for (String pref : ordenPreferido) {
+            if (pref == null) continue;
+            if (escalaManager.getPerfilesRegistrados().containsKey(pref) && !resolucionesDisponibles.contains(pref)) {
+                resolucionesDisponibles.add(pref);
+            }
+        }
+
+        for (String key : escalaManager.getResolucionesSoportadas()) {
+            if (!resolucionesDisponibles.contains(key)) {
+                resolucionesDisponibles.add(key);
+            }
+        }
+
+        if (resolucionesDisponibles.isEmpty()) {
+            resolucionesDisponibles.addAll(Arrays.asList("1920x1080", "1366x768", "1280x720"));
+        }
+
+        comboResoluciones = new JComboBox<>(resolucionesDisponibles.toArray(new String[0]));
         comboResoluciones.setEnabled(true);
         comboResoluciones.setBounds(220, 235, 200, 25);
         comboResoluciones.setBackground(new Color(20, 20, 30));
@@ -123,8 +145,15 @@ public class config extends JPanel {
             comboResoluciones.addItem(actualRes);
             comboResoluciones.setSelectedItem(actualRes);
         }
-         
+
         add(comboResoluciones);
+
+        comboResoluciones.addActionListener(e -> {
+            int[] dims = parseResolucionSeleccionada((String) comboResoluciones.getSelectedItem());
+            if (dims != null) {
+                cargarImagenFondoParaResolucion(dims[0], dims[1]);
+            }
+        });
         
         btnGuardar = new JButton("GUARDAR");
         btnGuardar.setBounds(100, 375, 130, 40);
@@ -165,6 +194,8 @@ public class config extends JPanel {
         agregarEfectoHover(btnGuardar, new Color(50, 150, 50), new Color(70, 200, 70));
         agregarEfectoHover(btnRestablecer, new Color(180, 100, 50), new Color(220, 140, 80));
         agregarEfectoHover(btnVolver, new Color(150, 50, 50), new Color(200, 80, 80));
+
+        cargarImagenFondoParaResolucion(resolucionAncho, resolucionAlto);
     }
     
     public void setParentFrame(JFrame frame) {
@@ -234,10 +265,11 @@ public class config extends JPanel {
             try {
                 resolucionAncho = Integer.parseInt(partes[0]);
                 resolucionAlto = Integer.parseInt(partes[1]);
-                
+
                 // 🔹 RECONFIGURAR ESCALA MANAGER
                 escalaManager.configurarEscala(resolucionAncho, resolucionAlto);
-                
+                cargarImagenFondoParaResolucion(resolucionAncho, resolucionAlto);
+
             } catch (Exception ex) {
                 System.err.println("Error al parsear resolución: " + ex.getMessage());
                 resolucionAncho = 1366;
@@ -544,19 +576,20 @@ public class config extends JPanel {
     
     private void restablecerValores() {
         sliderEfectos.setValue(50);
-        comboResoluciones.setSelectedItem("1366x768"); // 🔹 Resolución base
-        
+        comboResoluciones.setSelectedItem(escalaManager.getResolucionBaseKey()); // 🔹 Resolución base
+
         // Aplicar restablecimiento
         Musica.setVolumenEfectos(50);
-        
+
         // 🔹 RESETEAR ESCALA A BASE
         resolucionAncho = 1366;
         resolucionAlto = 768;
         escalaManager.configurarEscala(resolucionAncho, resolucionAlto);
-        
-        JOptionPane.showMessageDialog(this, 
-            "Valores restablecidos a predeterminados", 
-            "Restablecer", 
+        cargarImagenFondoParaResolucion(resolucionAncho, resolucionAlto);
+
+        JOptionPane.showMessageDialog(this,
+            "Valores restablecidos a predeterminados",
+            "Restablecer",
             JOptionPane.INFORMATION_MESSAGE);
     }
 
@@ -664,6 +697,45 @@ public class config extends JPanel {
         super.paintComponent(g);
         if (imagenFondo != null) {
             g.drawImage(imagenFondo, 0, 0, getWidth(), getHeight(), this);
+        }
+    }
+
+    private void cargarImagenFondoParaResolucion(int ancho, int alto) {
+        Image nuevaImagen = null;
+        for (String base : FONDOS_CANDIDATOS) {
+            if (base == null || base.isEmpty()) {
+                continue;
+            }
+            String ruta = escalaManager.resolverRecursoPorResolucion(ancho, alto, base);
+            try {
+                ImageIcon icon = new ImageIcon(ruta);
+                if (icon.getIconWidth() > 0 && icon.getIconHeight() > 0) {
+                    nuevaImagen = icon.getImage();
+                    break;
+                }
+            } catch (Exception ex) {
+                System.out.println("[config] No se pudo cargar fondo '" + ruta + "': " + ex.getMessage());
+            }
+        }
+        imagenFondo = nuevaImagen;
+        repaint();
+    }
+
+    private int[] parseResolucionSeleccionada(String seleccion) {
+        if (seleccion == null || !seleccion.contains("x")) {
+            return null;
+        }
+        try {
+            String[] partes = seleccion.split("x");
+            if (partes.length != 2) {
+                return null;
+            }
+            int ancho = Integer.parseInt(partes[0].trim());
+            int alto = Integer.parseInt(partes[1].trim());
+            return new int[]{ancho, alto};
+        } catch (NumberFormatException ex) {
+            System.err.println("[config] Resolución inválida: " + seleccion + " -> " + ex.getMessage());
+            return null;
         }
     }
 }
