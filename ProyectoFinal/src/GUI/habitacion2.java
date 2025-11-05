@@ -20,6 +20,9 @@ public class habitacion2 extends JPanel implements KeyListener {
     private boolean ignoreCollisions = false;
     private static final boolean DEBUG = false;
     private JLabel debugLabel;
+    // Mensaje temporal / indicador (misma estética que en comedor/CasaPrincipal)
+    private JLabel mensajeLabel;
+    private Timer mensajeTimer = null;
     
     // 🔹 RESOLUCIÓN BASE
     private static final int BASE_WIDTH = 1366;
@@ -63,6 +66,21 @@ public class habitacion2 extends JPanel implements KeyListener {
             debugLabel.setBounds(10, 10, 400, 20);
             add(debugLabel);
         }
+
+        // Inicializar label de mensaje temporal (misma estética usada en otros paneles)
+        mensajeLabel = new JLabel("", JLabel.CENTER);
+        mensajeLabel.setFont(new Font("Arial", Font.BOLD, escalaManager.escalaFuente(20)));
+        mensajeLabel.setForeground(Color.YELLOW);
+        mensajeLabel.setBackground(new Color(0, 0, 0, 180));
+        mensajeLabel.setOpaque(true);
+        mensajeLabel.setVisible(false);
+        add(mensajeLabel);
+
+        mensajeTimer = new Timer(2000, e -> {
+            mensajeLabel.setVisible(false);
+            ((Timer)e.getSource()).stop();
+        });
+        mensajeTimer.setRepeats(false);
 
         gameLoop = new Timer(16, e -> {
             // 🔹 GUARDAR POSICIÓN ANTERIOR
@@ -108,30 +126,34 @@ public class habitacion2 extends JPanel implements KeyListener {
     // Spawn obligatorio (1 objeto por habitación)
     private void spawnObjetosAleatorios() {
         String scene = "habitacion2";
-        String[] objetos = new String[]{
-            "Bandana de Capuchino Assasino.png",
-            "Cascara de Chimpanzini Bananini.png",
-            "Palo de Tung Tung.png",
-            "Rueda de Boneca Ambalabu.png",
-            "zapa.png"
-        };
+        // Coordenadas fijas solicitadas
+        final int FIXED_X = 790;
+        final int FIXED_Y = 225;
+
+        // Obtener la evidencia exclusiva asignada para esta escena
+        String evidenciaAsignada = EstadoJuego.getOrAssignUniqueEvidenceForScene(scene);
+        
+        String[] objetos = new String[]{ evidenciaAsignada };
 
         java.util.List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects(scene);
         if (list.isEmpty()) {
-            int[] pos = SistemaSpawnJuego.obtenerSpawnSeguro(scene, colisiones, true);
-            if (pos == null) pos = SistemaSpawnJuego.obtenerSpawnAleatorio(scene, true);
-            if (pos == null) {
-                java.awt.Rectangle[] zonas = SistemaSpawnJuego.obtenerZonasSpawnParaObjetos(scene);
-                if (zonas != null && zonas.length > 0) {
-                    java.awt.Rectangle z = zonas[0];
-                    pos = new int[]{z.x + z.width/2, z.y + z.height/2};
+            // Forzamos la posición fija para esta escena
+            int[] pos = new int[]{FIXED_X, FIXED_Y};
+            list.add(new EstadoJuego.SpawnedObject(evidenciaAsignada, pos[0], pos[1]));
+            EstadoJuego.setSpawnedObjects(scene, list);
+        } else {
+            // Si ya hay objetos en la lista, actualizamos su posición a la fija
+            boolean changed = false;
+            for (EstadoJuego.SpawnedObject so : list) {
+                if (!so.recogido) {
+                    if (so.x != FIXED_X || so.y != FIXED_Y) {
+                        so.x = FIXED_X;
+                        so.y = FIXED_Y;
+                        changed = true;
+                    }
                 }
             }
-            if (pos != null) {
-                int idx = (int) (Math.random() * objetos.length);
-                list.add(new EstadoJuego.SpawnedObject(objetos[idx], pos[0], pos[1]));
-            }
-            EstadoJuego.setSpawnedObjects(scene, list);
+            if (changed) EstadoJuego.setSpawnedObjects(scene, list);
         }
 
         // Crear labels
@@ -152,7 +174,56 @@ public class habitacion2 extends JPanel implements KeyListener {
                 int x = escalaManager.escalaX(so.x) - size/2;
                 int y = escalaManager.escalaY(so.y) - size/2;
                 itemLabel.setBounds(x, y, size, size);
+
+                // Tooltip con coordenadas base (para ver rápidamente dónde está)
+                itemLabel.setToolTipText("coords: (" + so.x + "," + so.y + ")");
+
                 this.add(itemLabel);
+
+                // Permitir editar posición con clic derecho y ver posición con clic izquierdo
+                itemLabel.addMouseListener(new java.awt.event.MouseAdapter() {
+                    public void mousePressed(java.awt.event.MouseEvent me) {
+                        if (javax.swing.SwingUtilities.isRightMouseButton(me)) {
+                            // Mostrar diálogo para editar coordenadas base (no escaladas)
+                            JTextField fx = new JTextField(Integer.toString(so.x));
+                            JTextField fy = new JTextField(Integer.toString(so.y));
+                            JPanel p = new JPanel(new GridLayout(2, 2, 5, 5));
+                            p.add(new JLabel("X:")); p.add(fx);
+                            p.add(new JLabel("Y:")); p.add(fy);
+
+                            int res = JOptionPane.showConfirmDialog(habitacion2.this, p,
+                                    "Editar posición (" + so.nombre + ")",
+                                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+                            if (res == JOptionPane.OK_OPTION) {
+                                try {
+                                    int nx = Integer.parseInt(fx.getText().trim());
+                                    int ny = Integer.parseInt(fy.getText().trim());
+                                    // actualizar datos base
+                                    so.x = nx;
+                                    so.y = ny;
+                                    // recalcular posición escalada y mover label
+                                    int nxScaled = escalaManager.escalaX(so.x) - size/2;
+                                    int nyScaled = escalaManager.escalaY(so.y) - size/2;
+                                    itemLabel.setBounds(nxScaled, nyScaled, size, size);
+                                    itemLabel.setToolTipText("coords: (" + so.x + "," + so.y + ")");
+                                    // guardar cambios en el EstadoJuego (persistencia en memoria)
+                                    EstadoJuego.setSpawnedObjects(scene, EstadoJuego.getSpawnedObjects(scene));
+                                    repaint();
+                                } catch (NumberFormatException ex) {
+                                    JOptionPane.showMessageDialog(habitacion2.this,
+                                            "Valores inválidos. Usa enteros.", "Error",
+                                            JOptionPane.ERROR_MESSAGE);
+                                }
+                            }
+                        } else if (javax.swing.SwingUtilities.isLeftMouseButton(me)) {
+                            // Mostrar un diálogo simple con la posición actual (base)
+                            JOptionPane.showMessageDialog(habitacion2.this,
+                                    "Posición de " + so.nombre + ": (" + so.x + ", " + so.y + ")",
+                                    "Posición objeto", JOptionPane.INFORMATION_MESSAGE);
+                        }
+                    }
+                });
+
                 objetosLabels.put(so, itemLabel);
             } catch (Exception ex) {
                 System.out.println("No se pudo cargar objeto: " + so.nombre + " -> " + ex.getMessage());
@@ -172,6 +243,8 @@ public class habitacion2 extends JPanel implements KeyListener {
             if (lbl == null) continue;
             if (playerBounds.intersects(lbl.getBounds())) {
                 nearbyObject = so;
+                // Mostrar mensaje cuando hay un objeto cercano
+                mostrarMensajeDuracion("E para recoger", 1000);
                 break;
             }
         }
@@ -226,6 +299,38 @@ public class habitacion2 extends JPanel implements KeyListener {
         
         // 🔹 DIBUJAR JUGADOR
         player.draw(g2);
+        
+        // Posicionar mensaje temporal (centrado, igual estética que otros paneles)
+        if (mensajeLabel != null) {
+            int msgW = escalaManager.escalaAncho(400);
+            int msgX = (escalaManager.getAnchoActual() - msgW) / 2;
+            int msgY = escalaManager.escalaY(100);
+            int msgH = escalaManager.escalaAlto(60);
+            mensajeLabel.setBounds(msgX, msgY, msgW, msgH);
+        }
+        // Mostrar indicador de recogida mientras haya un objeto cercano
+        if (nearbyObject != null) {
+            mensajeLabel.setText("E para recoger");
+            mensajeLabel.setVisible(true);
+        } else {
+            if (mensajeLabel != null) mensajeLabel.setVisible(false);
+        }
+    }
+
+    // Mostrar un mensaje temporal en el panel con la misma estética y posición que en CasaPrincipal/calle
+    private void mostrarMensajeDuracion(String mensaje, int ms) {
+        if (mensajeLabel == null) return;
+        if (mensajeTimer != null && mensajeTimer.isRunning()) {
+            mensajeTimer.stop();
+        }
+        mensajeLabel.setText(mensaje);
+        mensajeLabel.setVisible(true);
+        Timer temp = new Timer(ms, e -> {
+            mensajeLabel.setVisible(false);
+            ((Timer)e.getSource()).stop();
+        });
+        temp.setRepeats(false);
+        temp.start();
     }
 
     @Override
@@ -312,6 +417,18 @@ public class habitacion2 extends JPanel implements KeyListener {
         });
         am.put("right.release", new AbstractAction() {
             public void actionPerformed(ActionEvent e) { rightPressed = false; }
+        });
+
+        // 🔹 TECLA 'P' PARA IMPRIMIR POSICIONES DE SPAWN DE ESTA ESCENA (útil para ajustar)
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_P, 0, false), "print.positions");
+        am.put("print.positions", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                java.util.List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects("habitacion2");
+                System.out.println("== Spawn positions for habitacion2 ==");
+                for (EstadoJuego.SpawnedObject so : list) {
+                    System.out.println(so.nombre + " -> (" + so.x + "," + so.y + ") collected=" + so.recogido);
+                }
+            }
         });
     }
 }

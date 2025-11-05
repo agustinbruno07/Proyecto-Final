@@ -8,7 +8,10 @@ public class dialogo3 extends JPanel {
     private Image imagenDialogo;
     private float alpha = 1.0f;
 
-    // Configuraci�n de bordes
+    // Tiempo mínimo (ms) antes de permitir avanzar
+    private long earliestAdvanceMillis = 0;
+
+    // Configuración de bordes
     private final int MARGEN_HORIZONTAL = 100;
     private final int MARGEN_VERTICAL = 80;
 
@@ -17,13 +20,18 @@ public class dialogo3 extends JPanel {
         setLayout(null);
         setBackground(Color.BLACK);
 
-        // Cargar la tercera imagen del di�logo
+        // Cargar la tercera imagen del diálogo
         imagenDialogo = new ImageIcon("src/resources/images/dialogo3.png").getImage();
+
+        // Establecer el tiempo mínimo para permitir avanzar: 3.5 segundos desde que se muestra
+        earliestAdvanceMillis = System.currentTimeMillis() + 3500;
 
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                avanzarAlJuego();
+                if (System.currentTimeMillis() >= earliestAdvanceMillis) {
+                    avanzarAlJuego();
+                }
             }
         });
 
@@ -33,7 +41,9 @@ public class dialogo3 extends JPanel {
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_SPACE || e.getKeyCode() == KeyEvent.VK_ENTER || 
                     e.getKeyCode() == KeyEvent.VK_E) {
-                    avanzarAlJuego();
+                    if (System.currentTimeMillis() >= earliestAdvanceMillis) {
+                        avanzarAlJuego();
+                    }
                 }
             }
         });
@@ -74,11 +84,11 @@ public class dialogo3 extends JPanel {
             int imgWidth = imagenDialogo.getWidth(this);
             int imgHeight = imagenDialogo.getHeight(this);
 
-            // Calcular �rea disponible (panel menos bordes)
+            // Calcular área disponible (panel menos bordes)
             int areaDisponibleAncho = panelWidth - (2 * MARGEN_HORIZONTAL);
             int areaDisponibleAlto = panelHeight - (2 * MARGEN_VERTICAL);
 
-            // Calcular escala manteniendo relaci�n de aspecto
+            // Calcular escala manteniendo relación de aspecto
             double escalaX = (double) areaDisponibleAncho / imgWidth;
             double escalaY = (double) areaDisponibleAlto / imgHeight;
             double escala = Math.min(escalaX, escalaY);

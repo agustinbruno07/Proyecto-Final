@@ -13,6 +13,9 @@ public class dialogoBRR extends JPanel {
     private int dialogoActual = 1;
     private final int TOTAL_DIALOGOS = 5;
 
+    // Tiempo mínimo (ms) antes de permitir avanzar
+    private long earliestAdvanceMillis = 0;
+
     private final int MARGEN_HORIZONTAL = 100;
     private final int MARGEN_VERTICAL = 80;
 
@@ -46,6 +49,9 @@ public class dialogoBRR extends JPanel {
         alpha = 0.0f;
         fadeCompletado = false;
         
+        // Establecer el tiempo mínimo para permitir avanzar: 3.5 segundos desde que comienza el fade
+        earliestAdvanceMillis = System.currentTimeMillis() + 3500;
+        
         fadeTimer = new Timer(30, e -> {
             alpha += 0.03f; // Un poco más rápido que los diálogos normales
             if (alpha >= 1.0f) {
@@ -64,7 +70,9 @@ public class dialogoBRR extends JPanel {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (fadeCompletado) {
-                    avanzarSiguiente();
+                    if (System.currentTimeMillis() >= earliestAdvanceMillis) {
+                        avanzarSiguiente();
+                    }
                 } else {
                     completarFadeInmediato();
                 }
@@ -75,10 +83,11 @@ public class dialogoBRR extends JPanel {
             @Override
             public void keyPressed(KeyEvent e) {
                 if (fadeCompletado) {
-                    if (e.getKeyCode() == KeyEvent.VK_SPACE || 
+                    if ((e.getKeyCode() == KeyEvent.VK_SPACE || 
                         e.getKeyCode() == KeyEvent.VK_ENTER || 
                         e.getKeyCode() == KeyEvent.VK_E ||
-                        e.getKeyCode() == KeyEvent.VK_RIGHT) {
+                        e.getKeyCode() == KeyEvent.VK_RIGHT) &&
+                        System.currentTimeMillis() >= earliestAdvanceMillis) {
                         avanzarSiguiente();
                     }
                 } else {
@@ -123,8 +132,8 @@ public class dialogoBRR extends JPanel {
     private void terminarDialogo() {
         detenerAnimaciones();
      
-          
-       
+        // Marcar que el jugador ya habló con BRR
+        EstadoJuego.setHabladoConBrr(true);
 
         JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
         if (parentFrame != null) {

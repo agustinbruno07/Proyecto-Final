@@ -8,6 +8,9 @@ public class dialogo2 extends JPanel {
     private Image imagenDialogo;
     private float alpha = 1.0f;
 
+    // Tiempo mínimo (ms) antes de permitir avanzar
+    private long earliestAdvanceMillis = 0;
+
     // Configuración de bordes
     private final int MARGEN_HORIZONTAL = 100;
     private final int MARGEN_VERTICAL = 80;
@@ -20,11 +23,16 @@ public class dialogo2 extends JPanel {
         // Cargar la segunda imagen del diálogo
         imagenDialogo = new ImageIcon("src/resources/images/dialogo2.png").getImage();
 
+        // Establecer el tiempo mínimo para permitir avanzar: 3.5 segundos desde que se muestra
+        earliestAdvanceMillis = System.currentTimeMillis() + 3500;
+
         // Click o tecla → avanzar
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                avanzarAlSiguienteDialogo();
+                if (System.currentTimeMillis() >= earliestAdvanceMillis) {
+                    avanzarAlSiguienteDialogo();
+                }
             }
         });
 
@@ -34,7 +42,9 @@ public class dialogo2 extends JPanel {
             public void keyPressed(KeyEvent e) {
                 if (e.getKeyCode() == KeyEvent.VK_SPACE || e.getKeyCode() == KeyEvent.VK_ENTER || 
                     e.getKeyCode() == KeyEvent.VK_E) {
-                    avanzarAlSiguienteDialogo();
+                    if (System.currentTimeMillis() >= earliestAdvanceMillis) {
+                        avanzarAlSiguienteDialogo();
+                    }
                 }
             }
         });

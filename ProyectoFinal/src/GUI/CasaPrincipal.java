@@ -16,11 +16,21 @@ public class CasaPrincipal extends JPanel implements KeyListener {
     // objeto cercano que se puede recoger con 'E'
     private EstadoJuego.SpawnedObject nearbyObject = null;
 
+    // Nuevo: etiquetas para mostrar coordenadas en pantalla (edición rápida)
+    private java.util.Map<EstadoJuego.SpawnedObject, JLabel> objetosCoordLabels = new java.util.HashMap<>();
+    // Activar/desactivar modo edición (si true muestra y permite editar coordenadas)
+    // Por defecto desactivado para que los objetos no puedan modificarse en tiempo de ejecución
+    private boolean modoEdicionObjetos = false;
+
+    // Nombre del objeto fijo para esta escena (no cambiará)
+    private static final String OBJETO_FIJO_CASAPRINCIPAL = "Rueda de Boneca Ambalabu.png";
+
     private static final int BASE_WIDTH = 1366;
     private static final int BASE_HEIGHT = 768;
     
-    private static final int BASE_PLAYER_X = 720;
-    private static final int BASE_PLAYER_Y = 800;
+    // Posición fija solicitada: X=590, Y=140
+    private static final int BASE_PLAYER_X = 590;
+    private static final int BASE_PLAYER_Y = 140;
     
     private static final int BASE_PUERTA1_X = 270;
     private static final int BASE_PUERTA1_Y = 100;
@@ -63,6 +73,15 @@ public class CasaPrincipal extends JPanel implements KeyListener {
     private JLabel mensajeLabel;
     private javax.swing.Timer mensajeTimer;
     private JFrame parentFrame;
+
+    // Previos: almacenar estados anteriores para evitar mostrar el mensaje repetidamente cada tick
+    private boolean prevEstaEnPuerta1 = false;
+    private boolean prevEstaEnPuerta2 = false;
+    private boolean prevEstaEnPuertaPasillo1 = false;
+    private boolean prevEstaEnPuertaPasillo2 = false;
+
+    // Prev: estado anterior para no re-disparar mensajes de pickup cada tick
+    private boolean prevNearby = false;
 
     // 🔹 CONSTRUCTOR
     public CasaPrincipal(JFrame parentFrame) {
@@ -222,16 +241,45 @@ public class CasaPrincipal extends JPanel implements KeyListener {
         estaEnPuertaPasillo2 = jugadorBounds.intersects(puertaPasillo2Bounds);
         
         // Mostrar mensaje cuando está cerca de cualquier puerta
-        if (estaEnPuerta1 || estaEnPuerta2 || estaEnPuertaPasillo1 || estaEnPuertaPasillo2) {
+        boolean nowNearAny = estaEnPuerta1 || estaEnPuerta2 || estaEnPuertaPasillo1 || estaEnPuertaPasillo2;
+        boolean prevNearAny = prevEstaEnPuerta1 || prevEstaEnPuerta2 || prevEstaEnPuertaPasillo1 || prevEstaEnPuertaPasillo2;
+
+        if (nowNearAny && !prevNearAny) {
+            // Solo mostrar cuando entramos en proximidad (transición false->true)
             mostrarMensaje("Presiona E para entrar");
+        } else if (!nowNearAny && prevNearAny) {
+            // Al salir de la zona, ocultar el mensaje si está visible
+            if (mensajeLabel.isVisible()) {
+                mensajeLabel.setVisible(false);
+                if (mensajeTimer != null && mensajeTimer.isRunning()) mensajeTimer.stop();
+            }
         }
+
+        // Actualizar estados previos
+        prevEstaEnPuerta1 = estaEnPuerta1;
+        prevEstaEnPuerta2 = estaEnPuerta2;
+        prevEstaEnPuertaPasillo1 = estaEnPuertaPasillo1;
+        prevEstaEnPuertaPasillo2 = estaEnPuertaPasillo2;
     }
 
     private void mostrarMensaje(String mensaje) {
+        // Si ya se está mostrando el mismo mensaje, no hacer nada (evita duplicados)
+        if (mensajeLabel.isVisible() && mensaje.equals(mensajeLabel.getText())) {
+            System.out.println("[CasaPrincipal] mostrarMensaje: ya visible, ignorando: '" + mensaje + "'");
+            return;
+        }
+        // Posicionar el mensaje sobre el objeto (si existe) y mostrarlo
+        System.out.println("[CasaPrincipal] mostrarMensaje: mostrando: '" + mensaje + "'");
+        mensajeLabel.setText(mensaje);
+        posicionarMensajeSobreObjeto();
         if (!mensajeLabel.isVisible()) {
-            mensajeLabel.setText(mensaje);
             mensajeLabel.setVisible(true);
             mensajeTimer.start();
+        } else {
+            // Reiniciar el timer si ya estaba visible con distinto texto
+            if (mensajeTimer != null && mensajeTimer.isRunning()) {
+                mensajeTimer.restart();
+            }
         }
     }
 
@@ -341,6 +389,14 @@ public class CasaPrincipal extends JPanel implements KeyListener {
                     cambiarAPasillo2();
                 }
             }
+            // Toggle modo edición con la tecla 'P'
+            case KeyEvent.VK_P -> {
+                modoEdicionObjetos = !modoEdicionObjetos;
+                // ocultar/mostrar etiquetas de coordenadas
+                for (JLabel l : objetosCoordLabels.values()) {
+                    l.setVisible(modoEdicionObjetos);
+                }
+            }
         }
     }
 
@@ -368,26 +424,34 @@ public class CasaPrincipal extends JPanel implements KeyListener {
             "zapa.png"
         };
 
-        java.util.List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects(scene);
-        if (list.isEmpty()) {
-            // Solo un objeto por sección: intentar obtener una posición segura para un objeto
-            int[] pos = SistemaSpawnJuego.obtenerSpawnSeguro(scene, colisiones, true);
-            if (pos == null) {
-                pos = SistemaSpawnJuego.obtenerSpawnAleatorio(scene, true);
+        java.util.List<EstadoJuego.SpawnedObject> tmp = EstadoJuego.getSpawnedObjects(scene);
+        if (tmp == null) {
+            tmp = new java.util.ArrayList<>();
+        }
+        final java.util.List<EstadoJuego.SpawnedObject> list = tmp;
+        // Garantizar que haya exactamente un único objeto fijo por sección.
+        boolean found = false;
+        java.util.Iterator<EstadoJuego.SpawnedObject> it = list.iterator();
+        while (it.hasNext()) {
+            EstadoJuego.SpawnedObject so = it.next();
+            if (!OBJETO_FIJO_CASAPRINCIPAL.equals(so.nombre)) {
+                // Eliminar cualquier objeto distinto al que queremos fijar
+                it.remove();
+            } else {
+                // Si existe el objeto fijo, forzar sus coordenadas y nombre (evitar que cambie)
+                so.nombre = OBJETO_FIJO_CASAPRINCIPAL;
+                so.x = BASE_PLAYER_X;
+                so.y = BASE_PLAYER_Y;
+                found = true;
             }
-            if (pos == null) {
-                java.awt.Rectangle[] zonas = SistemaSpawnJuego.obtenerZonasSpawnParaObjetos(scene);
-                if (zonas != null && zonas.length > 0) {
-                    java.awt.Rectangle z = zonas[0];
-                    pos = new int[]{z.x + z.width/2, z.y + z.height/2};
-                }
-            }
-            if (pos != null) {
-                int idx = (int) (Math.random() * objetos.length);
-                list.add(new EstadoJuego.SpawnedObject(objetos[idx], pos[0], pos[1]));
-            }
-             EstadoJuego.setSpawnedObjects(scene, list);
-         }
+        }
+        if (!found) {
+            // No había el objeto fijo: crear exactamente uno
+            list.clear();
+            list.add(new EstadoJuego.SpawnedObject(OBJETO_FIJO_CASAPRINCIPAL, BASE_PLAYER_X, BASE_PLAYER_Y));
+        }
+        // Persistir siempre la lista para esta escena
+        EstadoJuego.setSpawnedObjects(scene, list);
 
         // Agrandar un poco las imágenes de los objetos
         int size = escalaManager.escalaUniforme(64);
@@ -406,8 +470,61 @@ public class CasaPrincipal extends JPanel implements KeyListener {
                 int x = escalaManager.escalaX(so.x) - size/2;
                 int y = escalaManager.escalaY(so.y) - size/2;
                 itemLabel.setBounds(x, y, size, size);
+
+                // Añadir listener para editar posición al hacer clic (modo edición)
+                itemLabel.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mouseClicked(MouseEvent e) {
+                        if (!modoEdicionObjetos) return;
+                        // Mostrar dialogo para editar coordenadas (en coordenadas base)
+                        String current = so.x + "," + so.y;
+                        String input = JOptionPane.showInputDialog(CasaPrincipal.this, "Editar coordenadas X,Y:", current);
+                        if (input == null) return; // cancel
+                        input = input.trim();
+                        String[] parts = input.split(",");
+                        if (parts.length != 2) {
+                            JOptionPane.showMessageDialog(CasaPrincipal.this, "Formato inválido. Use: X,Y", "Error", JOptionPane.ERROR_MESSAGE);
+                            return;
+                        }
+                        try {
+                            int newX = Integer.parseInt(parts[0].trim());
+                            int newY = Integer.parseInt(parts[1].trim());
+                            // actualizar objeto (coordenadas base)
+                            so.x = newX;
+                            so.y = newY;
+                            // reposicionar etiquetas en pantalla
+                            int nx = escalaManager.escalaX(so.x) - size/2;
+                            int ny = escalaManager.escalaY(so.y) - size/2;
+                            itemLabel.setBounds(nx, ny, size, size);
+                            JLabel coord = objetosCoordLabels.get(so);
+                            if (coord != null) {
+                                coord.setText(so.x + "," + so.y);
+                                coord.setBounds(nx, ny - 16, 100, 16);
+                            }
+                            // persistir cambios en EstadoJuego
+                            EstadoJuego.setSpawnedObjects(scene, list);
+                            revalidate();
+                            repaint();
+                        } catch (NumberFormatException ex) {
+                            JOptionPane.showMessageDialog(CasaPrincipal.this, "Valores inválidos. Deben ser enteros.", "Error", JOptionPane.ERROR_MESSAGE);
+                        }
+                    }
+                });
+
                 this.add(itemLabel);
                 objetosLabels.put(so, itemLabel);
+
+                // Crear etiqueta de coordenadas para edición rápida
+                JLabel coordLabel = new JLabel(so.x + "," + so.y);
+                coordLabel.setFont(new Font("Arial", Font.PLAIN, 12));
+                coordLabel.setForeground(Color.WHITE);
+                coordLabel.setBackground(new Color(0,0,0,160));
+                coordLabel.setOpaque(true);
+                coordLabel.setVisible(modoEdicionObjetos);
+                coordLabel.setBounds(x, y - 16, 100, 16);
+                this.add(coordLabel);
+                objetosCoordLabels.put(so, coordLabel);
+
             } catch (Exception ex) {
                 System.out.println("No se pudo cargar objeto: " + so.nombre + " -> " + ex.getMessage());
             }
@@ -420,6 +537,7 @@ public class CasaPrincipal extends JPanel implements KeyListener {
         String scene = "casaprincipal";
         nearbyObject = null;
         java.util.List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects(scene);
+        boolean nowNearby = false;
         for (EstadoJuego.SpawnedObject so : list) {
             if (so.recogido) continue;
             JLabel lbl = objetosLabels.get(so);
@@ -427,10 +545,23 @@ public class CasaPrincipal extends JPanel implements KeyListener {
             Rectangle objBounds = new Rectangle(lbl.getX(), lbl.getY(), lbl.getWidth(), lbl.getHeight());
             if (jugadorBounds.intersects(objBounds)) {
                 nearbyObject = so;
-                mostrarMensajeDuracion("Presiona E para recoger", 1000);
+                nowNearby = true;
                 break;
             }
         }
+
+        // Mostrar mensaje sólo cuando entramos en la zona (transición false -> true)
+        if (nowNearby && !prevNearby) {
+            mostrarMensajeDuracion("Presiona E para recoger", 1000);
+        } else if (!nowNearby && prevNearby) {
+            // Al salir de la zona, ocultar el mensaje de recoger si está mostrando ese texto
+            if (mensajeLabel.isVisible() && "Presiona E para recoger".equals(mensajeLabel.getText())) {
+                mensajeLabel.setVisible(false);
+                if (mensajeTimer != null && mensajeTimer.isRunning()) mensajeTimer.stop();
+            }
+        }
+
+        prevNearby = nowNearby;
     }
 
     private void collectNearbyObject() {
@@ -451,17 +582,74 @@ public class CasaPrincipal extends JPanel implements KeyListener {
 
     // Mostrar un mensaje temporal (ms) usando el mensajeLabel existente
     private void mostrarMensajeDuracion(String mensaje, int ms) {
-        if (mensajeTimer != null && mensajeTimer.isRunning()) {
-            mensajeTimer.stop();
+        // Asegurarnos de tener un mensajeTimer reutilizable
+        if (mensajeTimer == null) {
+            mensajeTimer = new javax.swing.Timer(ms, e -> {
+                mensajeLabel.setVisible(false);
+                ((javax.swing.Timer)e.getSource()).stop();
+            });
+            mensajeTimer.setRepeats(false);
         }
+
+        // Si el mismo mensaje ya está visible, sólo reinicia el timer (evita duplicados)
+        if (mensajeLabel.isVisible() && mensaje.equals(mensajeLabel.getText())) {
+            System.out.println("[CasaPrincipal] mostrarMensajeDuracion: mismo mensaje visible, reiniciando timer: '" + mensaje + "' ms=" + ms);
+            posicionarMensajeSobreObjeto();
+            // Reiniciar el timer con el nuevo tiempo
+            mensajeTimer.stop();
+            mensajeTimer.setInitialDelay(ms);
+            mensajeTimer.restart();
+            return;
+        }
+
+        // Mostrar el nuevo mensaje y (re)programar el timer reutilizable
+        System.out.println("[CasaPrincipal] mostrarMensajeDuracion: mostrando: '" + mensaje + "' ms=" + ms);
         mensajeLabel.setText(mensaje);
-        mensajeLabel.setVisible(true);
-        javax.swing.Timer tempTimer = new javax.swing.Timer(ms, e -> {
-            mensajeLabel.setVisible(false);
-            ((javax.swing.Timer)e.getSource()).stop();
+        posicionarMensajeSobreObjeto();
+        if (!mensajeLabel.isVisible()) mensajeLabel.setVisible(true);
+        // Reiniciar el timer con la duración solicitada
+        mensajeTimer.stop();
+        mensajeTimer.setInitialDelay(ms);
+        mensajeTimer.restart();
+    }
+
+    // Posicionar el mensaje centrado sobre el primer objeto visible (si existe).
+    private void posicionarMensajeSobreObjeto() {
+        SwingUtilities.invokeLater(() -> {
+            JLabel target = null;
+            for (JLabel l : objetosLabels.values()) {
+                if (l != null && l.isShowing()) { // preferir el primero visible
+                    target = l;
+                    break;
+                }
+            }
+            // Si no hay etiqueta de objeto, centrar en la pantalla como fallback
+            if (target == null) {
+                int msgW = escalaManager.escalaAncho(400);
+                int msgX = (escalaManager.getAnchoActual() - msgW) / 2;
+                int msgY = escalaManager.escalaY(100);
+                int msgH = escalaManager.escalaAlto(60);
+                mensajeLabel.setBounds(msgX, msgY, msgW, msgH);
+            } else {
+                int lblW = target.getWidth();
+                int lblH = target.getHeight();
+                int desiredW = Math.max(escalaManager.escalaAncho(200), lblW * 2);
+                int desiredH = escalaManager.escalaAlto(40);
+                int lx = target.getX();
+                int ly = target.getY();
+                int mx = lx + (lblW - desiredW) / 2;
+                int my = ly - desiredH - escalaManager.escalaAlto(8);
+                // si queda fuera de la parte superior, colocarlo debajo del objeto
+                if (my < 0) my = ly + lblH + escalaManager.escalaAlto(8);
+                mensajeLabel.setBounds(mx, my, desiredW, desiredH);
+            }
+            // Asegurar que el mensaje esté en la parte superior de la Z-order
+            if (mensajeLabel.getParent() == this) {
+                setComponentZOrder(mensajeLabel, 0);
+            }
+            revalidate();
+            repaint();
         });
-        tempTimer.setRepeats(false);
-        tempTimer.start();
     }
 
 }

@@ -16,6 +16,9 @@ public class casaIzquierda extends JPanel implements KeyListener {
     private boolean estaEnCofre = false;
     private boolean cofreAbierto = false;
     private colisiones colisiones;
+    private boolean estaEnPuerta = false; // nueva: proximidad a la puerta
+    // Evita transiciones repetidas al laberinto
+    private boolean autoEnteredLaberinto = false;
 
     // 🔹 RESOLUCIÓN BASE
     private static final int BASE_WIDTH = 1366;
@@ -98,6 +101,8 @@ public class casaIzquierda extends JPanel implements KeyListener {
             verificarPosicionCofre();
             verificarTransicionLaberinto(); 
             verificarSalidaInferior();
+            // Actualizar indicador de proximidad (cofre/puerta)
+            actualizarIndicadorProximidad();
             
             repaint();
         });
@@ -135,6 +140,9 @@ public class casaIzquierda extends JPanel implements KeyListener {
         
         Rectangle cofreBounds = new Rectangle(cofreX, cofreY, cofreW, cofreH);
         estaEnCofre = jugadorBounds.intersects(cofreBounds);
+
+        // Nota: ya no manejamos la visibilidad del label aquí. Se centraliza en
+        // actualizarIndicadorProximidad() para evitar que una verificación sobrescriba a la otra.
     }
 
     private void verificarTransicionLaberinto() {
@@ -147,8 +155,32 @@ public class casaIzquierda extends JPanel implements KeyListener {
         
         Rectangle laberintoBounds = new Rectangle(laberintoX, laberintoY, laberintoW, laberintoH);
         
-        if (jugadorBounds.intersects(laberintoBounds)) {
+        // Detectar intersección. Si el jugador entra en la zona del laberinto,
+        // realizar la transición automáticamente (una sola vez).
+        boolean intersect = jugadorBounds.intersects(laberintoBounds);
+        estaEnPuerta = intersect;
+        if (intersect && !autoEnteredLaberinto) {
+            autoEnteredLaberinto = true;
             cambiarALaberinto();
+        }
+    }
+
+    // Decide qué indicador mostrar (prioridad: cofre > puerta). No sobrescribe
+    // mensajes temporales (p. ej. "Encontre una llave") mientras el timer esté activo.
+    private void actualizarIndicadorProximidad() {
+        // Si hay un mensaje temporal en curso, no mostrar el indicador
+        if (mensajeTimer != null && mensajeTimer.isRunning()) {
+            return;
+        }
+
+        if (estaEnCofre && !cofreAbierto) {
+            mensajeLabel.setText("E para abrir");
+            mensajeLabel.setVisible(true);
+        } else {
+            // Eliminado: no mostrar "E para entrar" desde dentro de casaIzquierda.
+            // El prompt de entrada al laberinto se mostrará desde CasaPrincipal cuando el
+            // jugador esté cerca de la puerta exterior.
+            mensajeLabel.setVisible(false);
         }
     }
 
@@ -179,11 +211,13 @@ public class casaIzquierda extends JPanel implements KeyListener {
     }
 
     private void mostrarMensaje(String mensaje) {
-        if (!mensajeLabel.isVisible()) {
-            mensajeLabel.setText(mensaje);
-            mensajeLabel.setVisible(true);
-            mensajeTimer.start();
+        // Forzar la visualización del mensaje: detener timer activo, actualizar texto
+        if (mensajeTimer != null && mensajeTimer.isRunning()) {
+            mensajeTimer.stop();
         }
+        mensajeLabel.setText(mensaje);
+        mensajeLabel.setVisible(true);
+        if (mensajeTimer != null) mensajeTimer.start();
     }
 
     private void volverACalle() {
@@ -228,8 +262,15 @@ public class casaIzquierda extends JPanel implements KeyListener {
         if (key == KeyEvent.VK_A || key == KeyEvent.VK_LEFT)  leftPressed = true;
         if (key == KeyEvent.VK_D || key == KeyEvent.VK_RIGHT) rightPressed = true;
 
-        if (key == KeyEvent.VK_E && estaEnCofre && !cofreAbierto) {
-            abrirCofre();
+        if (key == KeyEvent.VK_E) {
+            // Priorizar abrir cofre si está cerca y no abierto
+            if (estaEnCofre && !cofreAbierto) {
+                abrirCofre();
+            } else if (estaEnPuerta) {
+                // ahora la entrada se realiza automáticamente al pisar la zona, pero
+                // mantenemos la opción manual como respaldo si hace falta.
+                cambiarALaberinto();
+            }
         }
     }
 

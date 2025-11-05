@@ -3,6 +3,7 @@ package GUI;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.List;
 
 public class Ranking extends JPanel {
     private Image imagenFondo;
@@ -18,11 +19,30 @@ public class Ranking extends JPanel {
             imagenFondo = null;
         }
 
-        JLabel lblProximamente = new JLabel("PROXIMAMENTE...", JLabel.CENTER);
-        lblProximamente.setBounds(250, 200, 800, 80);
-        lblProximamente.setFont(new Font("Arial", Font.BOLD, 48));
-        lblProximamente.setForeground(Color.YELLOW);
-        add(lblProximamente);
+        JLabel lblTitulo = new JLabel("RANKING", JLabel.CENTER);
+        lblTitulo.setBounds(200, 40, 800, 80);
+        lblTitulo.setFont(new Font("Arial", Font.BOLD, 48));
+        lblTitulo.setForeground(Color.YELLOW);
+        add(lblTitulo);
+
+        // Cargar ranking y mostrarlo
+        java.util.List<RankingManager.Entry> entries = RankingManager.loadRanking();
+        DefaultListModel<String> model = new DefaultListModel<>();
+        int max = Math.min(entries.size(), 20);
+        for (int i = 0; i < max; i++) {
+            RankingManager.Entry en = entries.get(i);
+            String line = String.format("%2d. %s - %s", i + 1, en.name, RankingManager.formatMillis(en.millis));
+            model.addElement(line);
+        }
+        if (entries.isEmpty()) {
+            model.addElement("(No hay resultados todavía)");
+        }
+
+        JList<String> list = new JList<>(model);
+        list.setFont(new Font("Monospaced", Font.PLAIN, 18));
+        JScrollPane sp = new JScrollPane(list);
+        sp.setBounds(250, 140, 600, 320);
+        add(sp);
 
         JButton btnVolver = new JButton("Volver");
         btnVolver.setBounds(550, 400, 200, 50);
@@ -55,14 +75,14 @@ public class Ranking extends JPanel {
 
     private void volverAVentanaInicio() {
         parentFrame.getContentPane().removeAll();
-        
+
         // 🔹 CREAR NUEVA INSTANCIA DE VENTANA INICIO
         ventanaInicio panelInicio = new ventanaInicio(parentFrame);
         parentFrame.getContentPane().add(panelInicio);
-        
+
         parentFrame.revalidate();
         parentFrame.repaint();
-        
+
         // 🔹 IMPORTANTE: INICIAR LA CARGA DE IMÁGENES
         panelInicio.iniciarCarga();
     }

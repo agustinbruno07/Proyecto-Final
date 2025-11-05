@@ -105,12 +105,45 @@ public class pasillo1 extends JPanel implements KeyListener {
         colisiones = new colisiones("src/resources/images/pasillo1 Mascara.png");
 
         // 🔹 CREAR JUGADOR: si se pasan coordenadas de entrada y son válidas, úsalas; si no, usa posición por defecto
+        int startX, startY;
         if (entryX >= 0 && entryY >= 0) {
-            player = new jugador(entryX, entryY);
-        } else {
-            int startX = escalaManager.escalaX(BASE_PLAYER_X);
-            int startY = escalaManager.escalaY(BASE_PLAYER_Y);
+            // Las coordenadas de entrada pueden venir ya escaladas (coordenadas de pantalla)
+            // o pueden ser coordenadas base (1366x768). Detectamos el caso comparando con
+            // las constantes BASE del escalaManager (más fiables si la escala aún no se configuró).
+            if (entryX > escalaManager.BASE_WIDTH || entryY > escalaManager.BASE_HEIGHT) {
+                startX = escalaManager.escalaX(entryX);
+                startY = escalaManager.escalaY(entryY);
+            } else {
+                startX = entryX;
+                startY = entryY;
+            }
             player = new jugador(startX, startY);
+        } else {
+            startX = escalaManager.escalaX(BASE_PLAYER_X);
+            startY = escalaManager.escalaY(BASE_PLAYER_Y);
+            player = new jugador(startX, startY);
+        }
+        // Si la posición inicial está dentro de una zona de colisión, intentar buscar una posición segura
+        if (colisiones != null && colisiones.hayColision(player.getBounds())) {
+            int[] seguro = SistemaSpawnJuego.obtenerSpawnSeguro("pasillo1", colisiones, false);
+            if (seguro != null) {
+                player.setPosition(seguro[0], seguro[1]);
+            } else {
+                // como última opción, desplazar al jugador hacia abajo hasta quedar fuera de la máscara
+                int py = startY;
+                int maxY = Math.max(escalaManager.getAltoActual() - 60, py + 1);
+                boolean found = false;
+                for (int tryY = py; tryY <= maxY; tryY += 10) {
+                    player.setPosition(startX, tryY);
+                    if (!colisiones.hayColision(player.getBounds())) {
+                        found = true; break;
+                    }
+                }
+                if (!found) {
+                    // dejar la posición original (no queda otra)
+                    player.setPosition(startX, startY);
+                }
+            }
         }
         
         // Spawn de objetos en posiciones aleatorias (solo objetos)
@@ -372,7 +405,7 @@ public class pasillo1 extends JPanel implements KeyListener {
             if (lbl == null) continue;
             if (playerBounds.intersects(lbl.getBounds())) {
                 nearbyObject = so;
-                System.out.println("Cerca de objeto: presiona E para recoger");
+                System.out.println("Cerca de objeto: E para recoger");
                 break;
             }
         }

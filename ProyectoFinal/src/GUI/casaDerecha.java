@@ -8,19 +8,24 @@ public class casaDerecha extends JPanel implements KeyListener {
 
     private jugador player;
     private Image fondo;
+    private Image imagenPersonaje;
     private Timer gameLoop;
     private JLabel mensajeLabel;
     private Timer mensajeTimer;
     private boolean upPressed, downPressed, leftPressed, rightPressed;
+    private boolean estaEnPersonaje = false;
     private colisiones colisiones;
 
-    // 🔹 RESOLUCIÓN BASE
     private static final int BASE_WIDTH = 1366;
     private static final int BASE_HEIGHT = 768;
     
-    // 🔹 POSICIÓN INICIAL BASE
     private static final int BASE_PLAYER_X = 1000;
     private static final int BASE_PLAYER_Y = 650;
+    
+    private static final int BASE_PERSONAJE_X = 1005;
+    private static final int BASE_PERSONAJE_Y = 530;
+    private static final int BASE_PERSONAJE_W = 50;
+    private static final int BASE_PERSONAJE_H = 60;
 
     public casaDerecha(JFrame parentFrame) {
         setLayout(null);
@@ -29,8 +34,9 @@ public class casaDerecha extends JPanel implements KeyListener {
 
         fondo = new ImageIcon("src/resources/images/casas_derecha.png").getImage();
         colisiones = new colisiones("src/resources/images/casas_derechaColisiones.png");
+        
+        imagenPersonaje = new ImageIcon("src/resources/images/brrbrrpatapim.png").getImage();
 
-        // 🔹 CREAR JUGADOR CON POSICIÓN ESCALADA
         int startX = escalaManager.escalaX(BASE_PLAYER_X);
         int startY = escalaManager.escalaY(BASE_PLAYER_Y);
         player = new jugador(startX, startY);
@@ -72,8 +78,9 @@ public class casaDerecha extends JPanel implements KeyListener {
                     escalaManager.getAltoActual());
             player.clampTo(bounds);
             
+            verificarPosicionPersonaje();
             verificarSalidaInferior();
-            
+            System.out.println("Player Position: (" + player.getX() + ", " + player.getY() + ")"); 
             repaint();
         });
         gameLoop.start();
@@ -93,6 +100,44 @@ public class casaDerecha extends JPanel implements KeyListener {
         
         if (jugadorBounds.y + jugadorBounds.height >= panelHeight - 5) {
             volverACalle();
+        }
+    }
+
+    private void verificarPosicionPersonaje() {
+        Rectangle jugadorBounds = player.getBounds();
+        
+        int personajeX = escalaManager.escalaX(BASE_PERSONAJE_X);
+        int personajeY = escalaManager.escalaY(BASE_PERSONAJE_Y);
+        int personajeW = escalaManager.escalaAncho(BASE_PERSONAJE_W);
+        int personajeH = escalaManager.escalaAlto(BASE_PERSONAJE_H);
+        
+        Rectangle personajeBounds = new Rectangle(personajeX, personajeY, personajeW, personajeH);
+        estaEnPersonaje = jugadorBounds.intersects(personajeBounds);
+        
+        if (estaEnPersonaje && !mensajeLabel.isVisible()) {
+            mostrarMensaje("Presiona E para hablar");
+        }
+    }
+
+    private void hablarConPersonaje() {
+        if (estaEnPersonaje) {
+            cambiarADialogoBRR();
+        }
+    }
+
+    private void cambiarADialogoBRR() {
+        if (gameLoop != null && gameLoop.isRunning()) gameLoop.stop();
+        if (mensajeTimer != null && mensajeTimer.isRunning()) mensajeTimer.stop();
+
+        JFrame parentFrame = (JFrame) SwingUtilities.getWindowAncestor(this);
+        if (parentFrame != null) {
+            dialogoBRR dialogoPanel = new dialogoBRR(parentFrame);
+
+            parentFrame.getContentPane().removeAll();
+            parentFrame.getContentPane().add(dialogoPanel);
+            parentFrame.revalidate();
+            parentFrame.repaint();
+            SwingUtilities.invokeLater(dialogoPanel::requestFocusInWindow);
         }
     }
 
@@ -126,6 +171,12 @@ public class casaDerecha extends JPanel implements KeyListener {
 
         g.drawImage(fondo, 0, 0, getWidth(), getHeight(), null);
         
+        int personajeX = escalaManager.escalaX(BASE_PERSONAJE_X);
+        int personajeY = escalaManager.escalaY(BASE_PERSONAJE_Y);
+        int personajeW = escalaManager.escalaAncho(BASE_PERSONAJE_W);
+        int personajeH = escalaManager.escalaAlto(BASE_PERSONAJE_H);
+        g.drawImage(imagenPersonaje, personajeX, personajeY, personajeW, personajeH, this);
+        
         player.draw(g);
     }
 
@@ -136,6 +187,10 @@ public class casaDerecha extends JPanel implements KeyListener {
         if (key == KeyEvent.VK_S || key == KeyEvent.VK_DOWN)  downPressed = true;
         if (key == KeyEvent.VK_A || key == KeyEvent.VK_LEFT)  leftPressed = true;
         if (key == KeyEvent.VK_D || key == KeyEvent.VK_RIGHT) rightPressed = true;
+
+        if (key == KeyEvent.VK_E && estaEnPersonaje) {
+            hablarConPersonaje();
+        }
     }
 
     @Override

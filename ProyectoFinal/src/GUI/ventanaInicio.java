@@ -147,6 +147,19 @@ public class ventanaInicio extends JPanel {
         btnIniciar.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
                 Musica.reproducir("src/resources/sonidos/inicio.wav");
+                
+                // Pedir nombre del jugador antes de iniciar los diálogos
+                String nombre = javax.swing.JOptionPane.showInputDialog(parentFrame, "Ingrese su nombre:", "Nombre del jugador", javax.swing.JOptionPane.PLAIN_MESSAGE);
+                if (nombre == null) { // si cancela, asignar un nombre por defecto
+                    nombre = "Jugador";
+                }
+                EstadoJuego.setPlayerName(nombre);
+
+                // Reiniciar y arrancar temporizador global
+                EstadoJuego.resetTimer();
+                EstadoJuego.startTimer();
+                EstadoJuego.createTimerOverlayIfNeeded(parentFrame);
+
                 parentFrame.getContentPane().removeAll();
                 parentFrame.getContentPane().add(new dialogo1(parentFrame)); 
                 parentFrame.revalidate();

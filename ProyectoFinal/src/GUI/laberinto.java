@@ -151,12 +151,11 @@ public class laberinto extends JPanel implements KeyListener {
 
     private void spawnObjetosAleatorios() {
         String scene = "laberinto";
+        // Obtener la evidencia asignada exclusivamente para esta escena
+        String evidenciaAsignada = EstadoJuego.getOrAssignUniqueEvidenceForScene(scene);
+
         String[] objetos = new String[]{
-            "Bandana de Capuchino Assasino.png",
-            "Cascara de Chimpanzini Bananini.png", 
-            "Palo de Tung Tung.png",
-            "Rueda de Boneca Ambalabu.png",
-            "zapa.png"
+            evidenciaAsignada
         };
 
         try {
@@ -165,24 +164,19 @@ public class laberinto extends JPanel implements KeyListener {
             
             // Solo spawnear si no hay objetos existentes
             if (list.isEmpty()) {
-                int[] pos = obtenerPosicionSpawnSegura(scene);
-                
-                if (pos != null) {
-                    int idx = (int) (Math.random() * objetos.length);
-                    EstadoJuego.SpawnedObject newObj = new EstadoJuego.SpawnedObject(
-                        objetos[idx], 
-                        pos[0], // Coordenadas base (no escaladas)
-                        pos[1]  // Coordenadas base (no escaladas)
-                    );
-                    list.add(newObj);
-                    EstadoJuego.setSpawnedObjects(scene, list);
-                    System.out.println("Objeto spawnedo en laberinto: " + objetos[idx] + " en " + pos[0] + "," + pos[1]);
-                } else {
-                    System.out.println("No se pudo encontrar posición segura para objeto en laberinto");
-                }
-            } else {
-                System.out.println("Ya existen objetos en laberinto: " + list.size());
-            }
+                // Forzar posición fija solicitada: x=450, y=85
+                int[] pos = new int[]{450, 85};
+                EstadoJuego.SpawnedObject newObj = new EstadoJuego.SpawnedObject(
+                    evidenciaAsignada,
+                    pos[0], // Coordenadas base (no escaladas)
+                    pos[1]  // Coordenadas base (no escaladas)
+                );
+                list.add(newObj);
+                EstadoJuego.setSpawnedObjects(scene, list);
+                System.out.println("Objeto spawnedo en laberinto (fijo): " + evidenciaAsignada + " en " + pos[0] + "," + pos[1]);
+             } else {
+                 System.out.println("Ya existen objetos en laberinto: " + list.size());
+             }
 
             crearLabelsObjetos(scene, list);
             
@@ -273,6 +267,49 @@ public class laberinto extends JPanel implements KeyListener {
                 int y = escalaManager.escalaY(so.y) - size/2;
                 
                 itemLabel.setBounds(x, y, size, size);
+                
+                // Mostrar coordenadas base como tooltip
+                itemLabel.setToolTipText("coords: (" + so.x + "," + so.y + ")");
+                
+                // Permitir editar posición con clic derecho y ver posición con clic izquierdo
+                itemLabel.addMouseListener(new java.awt.event.MouseAdapter() {
+                    public void mousePressed(java.awt.event.MouseEvent me) {
+                        if (javax.swing.SwingUtilities.isRightMouseButton(me)) {
+                            JTextField fx = new JTextField(Integer.toString(so.x));
+                            JTextField fy = new JTextField(Integer.toString(so.y));
+                            JPanel p = new JPanel(new GridLayout(2, 2, 5, 5));
+                            p.add(new JLabel("X:")); p.add(fx);
+                            p.add(new JLabel("Y:")); p.add(fy);
+
+                            int res = JOptionPane.showConfirmDialog(laberinto.this, p,
+                                    "Editar posición (" + so.nombre + ")",
+                                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+                            if (res == JOptionPane.OK_OPTION) {
+                                try {
+                                    int nx = Integer.parseInt(fx.getText().trim());
+                                    int ny = Integer.parseInt(fy.getText().trim());
+                                    so.x = nx;
+                                    so.y = ny;
+                                    int nxScaled = escalaManager.escalaX(so.x) - size/2;
+                                    int nyScaled = escalaManager.escalaY(so.y) - size/2;
+                                    itemLabel.setBounds(nxScaled, nyScaled, size, size);
+                                    itemLabel.setToolTipText("coords: (" + so.x + "," + so.y + ")");
+                                    EstadoJuego.setSpawnedObjects(scene, EstadoJuego.getSpawnedObjects(scene));
+                                    repaint();
+                                } catch (NumberFormatException ex) {
+                                    JOptionPane.showMessageDialog(laberinto.this,
+                                            "Valores inválidos. Usa enteros.", "Error",
+                                            JOptionPane.ERROR_MESSAGE);
+                                }
+                            }
+                        } else if (javax.swing.SwingUtilities.isLeftMouseButton(me)) {
+                            JOptionPane.showMessageDialog(laberinto.this,
+                                    "Posición de " + so.nombre + ": (" + so.x + ", " + so.y + ")",
+                                    "Posición objeto", JOptionPane.INFORMATION_MESSAGE);
+                        }
+                    }
+                });
+
                 this.add(itemLabel);
                 objetosLabels.put(so, itemLabel);
                 objetosCreados++;
@@ -408,7 +445,7 @@ public class laberinto extends JPanel implements KeyListener {
         
         // Mostrar indicador de recogida dentro del mensajeLabel (misma estética que comedor)
         if (nearbyObject != null) {
-            mensajeLabel.setText("Pulsa E para recoger");
+            mensajeLabel.setText("E para recoger");
             mensajeLabel.setVisible(true);
         } else {
             if (mensajeLabel != null) mensajeLabel.setVisible(false);
@@ -519,6 +556,16 @@ public class laberinto extends JPanel implements KeyListener {
         if (key == KeyEvent.VK_E && nearbyObject != null) {
             collectNearbyObject();
         }
+        // Tecla 'P' para imprimir posiciones de spawn del laberinto (útil para ajustar)
+        if (key == KeyEvent.VK_P) {
+            java.util.List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects("laberinto");
+            System.out.println("== Spawn positions for laberinto ==");
+            if (list != null) {
+                for (EstadoJuego.SpawnedObject so : list) {
+                    System.out.println(so.nombre + " -> (" + so.x + "," + so.y + ") collected=" + so.recogido);
+                }
+            }
+         }
     }
     
     @Override

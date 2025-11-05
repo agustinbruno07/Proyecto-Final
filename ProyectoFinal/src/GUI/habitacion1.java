@@ -190,13 +190,10 @@ public class habitacion1 extends JPanel implements KeyListener {
     // Metodo para spawnear exactamente un objeto en la habitacion
     private void spawnObjetosAleatorios() {
         String scene = "habitacion1";
-        String[] objetos = new String[] {
-            "Bandana de Capuchino Assasino.png",
-            "Cascara de Chimpanzini Bananini.png",
-            "Palo de Tung Tung.png",
-            "Rueda de Boneca Ambalabu.png",
-            "zapa.png"
-        };
+        // Obtener la evidencia exclusiva para esta escena
+        String evidenciaAsignada = EstadoJuego.getOrAssignUniqueEvidenceForScene(scene);
+
+        String[] objetos = new String[] { evidenciaAsignada };
 
         try {
             List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects(scene);
@@ -206,21 +203,16 @@ public class habitacion1 extends JPanel implements KeyListener {
 
             // Solo spawnear si no hay objetos existentes
             if (list.isEmpty()) {
-                int[] pos = obtenerPosicionSpawnSegura(scene);
-                
-                if (pos != null) {
-                    int idx = (int) (Math.random() * objetos.length);
-                    EstadoJuego.SpawnedObject newObj = new EstadoJuego.SpawnedObject(
-                        objetos[idx], 
-                        pos[0], // Coordenadas base (no escaladas)
-                        pos[1]  // Coordenadas base (no escaladas)
-                    );
-                    list.add(newObj);
-                    EstadoJuego.setSpawnedObjects(scene, list);
-                    System.out.println("Objeto spawnedo en habitacion1: " + objetos[idx] + " en " + pos[0] + "," + pos[1]);
-                } else {
-                    System.out.println("No se pudo encontrar posición segura para objeto en habitacion1");
-                }
+                // Fuerzar posición fija solicitada por el usuario: x=620, y=315
+                int[] pos = new int[]{620, 315};
+                EstadoJuego.SpawnedObject newObj = new EstadoJuego.SpawnedObject(
+                    evidenciaAsignada,
+                    pos[0], // Coordenadas base (no escaladas)
+                    pos[1]  // Coordenadas base (no escaladas)
+                );
+                list.add(newObj);
+                EstadoJuego.setSpawnedObjects(scene, list);
+                System.out.println("Objeto spawnedo en habitacion1 (fijo): " + evidenciaAsignada + " en " + pos[0] + "," + pos[1]);
             } else {
                 System.out.println("Ya existen objetos en habitacion1: " + list.size());
             }
@@ -291,9 +283,56 @@ public class habitacion1 extends JPanel implements KeyListener {
                 int y = escalaManager.escalaY(so.y) - size/2;
                 
                 itemLabel.setBounds(x, y, size, size);
-                this.add(itemLabel);
-                objetosLabels.put(so, itemLabel);
-                objetosCreados++;
+                // Tooltip con coordenadas base (para ver rápidamente dónde está)
+                itemLabel.setToolTipText("coords: (" + so.x + "," + so.y + ")");
+
+                // Permitir editar posición con clic derecho y ver posición con clic izquierdo
+                itemLabel.addMouseListener(new java.awt.event.MouseAdapter() {
+                    public void mousePressed(java.awt.event.MouseEvent me) {
+                        if (javax.swing.SwingUtilities.isRightMouseButton(me)) {
+                            // Mostrar diálogo para editar coordenadas base (no escaladas)
+                            JTextField fx = new JTextField(Integer.toString(so.x));
+                            JTextField fy = new JTextField(Integer.toString(so.y));
+                            JPanel p = new JPanel(new GridLayout(2, 2, 5, 5));
+                            p.add(new JLabel("X:")); p.add(fx);
+                            p.add(new JLabel("Y:")); p.add(fy);
+
+                            int res = JOptionPane.showConfirmDialog(habitacion1.this, p,
+                                    "Editar posición (" + so.nombre + ")",
+                                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+                            if (res == JOptionPane.OK_OPTION) {
+                                try {
+                                    int nx = Integer.parseInt(fx.getText().trim());
+                                    int ny = Integer.parseInt(fy.getText().trim());
+                                    // actualizar datos base
+                                    so.x = nx;
+                                    so.y = ny;
+                                    // recalcular posición escalada y mover label
+                                    int nxScaled = escalaManager.escalaX(so.x) - size/2;
+                                    int nyScaled = escalaManager.escalaY(so.y) - size/2;
+                                    itemLabel.setBounds(nxScaled, nyScaled, size, size);
+                                    itemLabel.setToolTipText("coords: (" + so.x + "," + so.y + ")");
+                                    // guardar cambios en el EstadoJuego (persistencia en memoria)
+                                    EstadoJuego.setSpawnedObjects(scene, EstadoJuego.getSpawnedObjects(scene));
+                                    repaint();
+                                } catch (NumberFormatException ex) {
+                                    JOptionPane.showMessageDialog(habitacion1.this,
+                                            "Valores inválidos. Usa enteros.", "Error",
+                                            JOptionPane.ERROR_MESSAGE);
+                                }
+                            }
+                        } else if (javax.swing.SwingUtilities.isLeftMouseButton(me)) {
+                            // Mostrar un diálogo simple con la posición actual (base)
+                            JOptionPane.showMessageDialog(habitacion1.this,
+                                    "Posición de " + so.nombre + ": (" + so.x + ", " + so.y + ")",
+                                    "Posición objeto", JOptionPane.INFORMATION_MESSAGE);
+                        }
+                    }
+                });
+                 
+                 this.add(itemLabel);
+                 objetosLabels.put(so, itemLabel);
+                 objetosCreados++;
                 
                 System.out.println("Label creado para objeto: " + so.nombre + " en posición escalada " + x + "," + y);
                 
@@ -355,7 +394,7 @@ public class habitacion1 extends JPanel implements KeyListener {
             
             if (playerBounds.intersects(lbl.getBounds())) {
                 nearbyObject = so;
-                System.out.println("Cerca de objeto: presiona E para recoger");
+                System.out.println("Cerca de objeto: E para recoger");
                 break;
             }
         }
@@ -400,12 +439,12 @@ public class habitacion1 extends JPanel implements KeyListener {
 
         if (parentFrame != null) {
             try {
-                // Pasar la posicion correcta segun la habitacion/pasillo
-                // Asumiendo que CasaPrincipal tiene constantes para las posiciones de retorno
-                int retornoX = escalaManager.escalaX(683); // Posición central por defecto
-                int retornoY = escalaManager.escalaY(600); // Posición cerca de la puerta
-                
-                CasaPrincipal siguientePanel = new CasaPrincipal(parentFrame, retornoX, retornoY);
+                // Usar las constantes públicas de CasaPrincipal para la posición de retorno (valores base sin escalar)
+                int retornoX_base = CasaPrincipal.BASE_RETORNO_PUERTA1_X;
+                // Colocar 50px por debajo en coordenadas base (CasaPrincipal se encargará de escalar)
+                int retornoY_base = CasaPrincipal.BASE_RETORNO_PUERTA1_Y + 50;
+
+                CasaPrincipal siguientePanel = new CasaPrincipal(parentFrame, retornoX_base, retornoY_base);
 
                 parentFrame.getContentPane().removeAll();
                 parentFrame.getContentPane().add(siguientePanel);
@@ -438,7 +477,7 @@ public class habitacion1 extends JPanel implements KeyListener {
         
         // Mostrar indicador de recogida usando mensajeLabel (misma estética que comedor)
         if (nearbyObject != null) {
-            mensajeLabel.setText("Presiona E para recoger " + nearbyObject.nombre);
+            mensajeLabel.setText("E para recoger");
             mensajeLabel.setVisible(true);
         } else {
             if (mensajeLabel != null) mensajeLabel.setVisible(false);
@@ -545,6 +584,21 @@ public class habitacion1 extends JPanel implements KeyListener {
         am.put("right.release", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) { rightPressed = false; }
+        });
+        
+        // Tecla 'P' para imprimir posiciones de spawn de esta escena (útil para ajustar)
+        im.put(KeyStroke.getKeyStroke(KeyEvent.VK_P, 0, false), "print.positions");
+        am.put("print.positions", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                java.util.List<EstadoJuego.SpawnedObject> list = EstadoJuego.getSpawnedObjects("habitacion1");
+                System.out.println("== Spawn positions for habitacion1 ==");
+                if (list != null) {
+                    for (EstadoJuego.SpawnedObject so : list) {
+                        System.out.println(so.nombre + " -> (" + so.x + "," + so.y + ") collected=" + so.recogido);
+                    }
+                }
+            }
         });
     }
 }

@@ -11,6 +11,9 @@ public class dialogo1 extends JPanel {
     private Timer fadeTimer;
     private boolean fadeCompletado = false;
 
+    // Tiempo mínimo (ms) antes de permitir avanzar
+    private long earliestAdvanceMillis = 0;
+
     // Configuración de bordes
     private final int MARGEN_HORIZONTAL = 100; // Borde izquierdo y derecho
     private final int MARGEN_VERTICAL = 80;   // Borde superior e inferior
@@ -40,11 +43,16 @@ public class dialogo1 extends JPanel {
         });
         fadeTimer.start();
 
+        // Establecer el tiempo mínimo para permitir avanzar: 3.5 segundos desde que se muestra
+        earliestAdvanceMillis = System.currentTimeMillis() + 3500;
+
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (fadeCompletado) {
-                    avanzarAlSiguienteDialogo();
+                    if (System.currentTimeMillis() >= earliestAdvanceMillis) {
+                        avanzarAlSiguienteDialogo();
+                    }
                 }
             }
         });
@@ -56,7 +64,9 @@ public class dialogo1 extends JPanel {
                 if (fadeCompletado && 
                     (e.getKeyCode() == KeyEvent.VK_SPACE || e.getKeyCode() == KeyEvent.VK_ENTER || 
                      e.getKeyCode() == KeyEvent.VK_E)) {
-                    avanzarAlSiguienteDialogo();
+                    if (System.currentTimeMillis() >= earliestAdvanceMillis) {
+                        avanzarAlSiguienteDialogo();
+                    }
                 }
             }
         });

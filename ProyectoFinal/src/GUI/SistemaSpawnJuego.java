@@ -40,10 +40,7 @@ public class SistemaSpawnJuego {
         new Rectangle(900, 500, 200, 100)     
     };
 
-    public static int[] obtenerSpawnAleatorio(String tipoEscena) {
-        // Mantener compatibilidad: delegar a la nueva sobrecarga (esObjeto = false)
-        return obtenerSpawnAleatorio(tipoEscena, false);
-    }
+ 
 
     /**
      * Obtiene una posici�n de spawn aleatoria que evite colisiones
@@ -56,24 +53,7 @@ public class SistemaSpawnJuego {
     /**
      * Nueva sobrecarga: si esObjeto == true, limita las zonas a las permitidas para objetos
      */
-    public static int[] obtenerSpawnAleatorio(String tipoEscena, boolean esObjeto) {
-        Rectangle[] zonasSpawn = esObjeto ? obtenerZonasSpawnParaObjetos(tipoEscena) : obtenerZonasSpawn(tipoEscena);
-
-        if (zonasSpawn == null || zonasSpawn.length == 0) {
-            // Si se solicita spawn para un objeto y no hay zonas válidas, devolver null para indicar "no spawnear"
-            if (esObjeto) return null;
-            // Fallback seguro si no hay zonas válidas (para jugadores/NPCs)
-            Rectangle zona = new Rectangle(100, 100, 200, 100);
-            int x = zona.x + random.nextInt(zona.width);
-            int y = zona.y + random.nextInt(zona.height);
-            return new int[]{x, y};
-        }
-
-        Rectangle zona = zonasSpawn[random.nextInt(zonasSpawn.length)];
-        int x = zona.x + random.nextInt(zona.width);
-        int y = zona.y + random.nextInt(zona.height);
-        return new int[]{x, y};
-    }
+    
 
     public static int[] obtenerSpawnSeguro(String tipoEscena, colisiones sistemaColisiones, boolean esObjeto) {
         Rectangle[] zonasSpawn = esObjeto ? obtenerZonasSpawnParaObjetos(tipoEscena) : obtenerZonasSpawn(tipoEscena);
@@ -99,6 +79,28 @@ public class SistemaSpawnJuego {
 
         Rectangle zona = zonasSpawn[0];
         return new int[]{zona.x + zona.width/2, zona.y + zona.height/2};
+    }
+
+    // Nuevo método: devuelve una posición aleatoria dentro de las zonas de spawn
+    // Si esObjeto == true usa las zonas permitidas para objetos; si no, usa las zonas normales.
+    // Retorna null si no hay zonas válidas para objetos (comportamiento esperado por los llamantes).
+    public static int[] obtenerSpawnAleatorio(String tipoEscena, boolean esObjeto) {
+        Rectangle[] zonas = esObjeto ? obtenerZonasSpawnParaObjetos(tipoEscena) : obtenerZonasSpawn(tipoEscena);
+        if (zonas == null || zonas.length == 0) {
+            if (esObjeto) return null;
+            // devolver posición por defecto en caso de no haber zonas
+            Rectangle zonaDef = new Rectangle(100, 100, 200, 100);
+            return new int[]{zonaDef.x + zonaDef.width/2, zonaDef.y + zonaDef.height/2};
+        }
+        Rectangle zona = zonas[random.nextInt(zonas.length)];
+        int x = zona.x + random.nextInt(Math.max(1, zona.width));
+        int y = zona.y + random.nextInt(Math.max(1, zona.height));
+        return new int[]{x, y};
+    }
+
+    // Conveniencia: versión sin el parámetro esObjeto (comportamiento por defecto: esObjeto = false)
+    public static int[] obtenerSpawnAleatorio(String tipoEscena) {
+        return obtenerSpawnAleatorio(tipoEscena, false);
     }
 
     // Método nuevo: devuelve sólo las zonas permitidas para objetos
