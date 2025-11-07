@@ -282,10 +282,14 @@ public class calle extends JPanel implements KeyListener {
         if (key == KeyEvent.VK_D || key == KeyEvent.VK_RIGHT) rightPressed = true;
         
         if (key == KeyEvent.VK_E && estaEnPuerta) {
-            if (EstadoJuego.isCofreAbierto()) {
-                cambiarACasaPrincipal();
-            } else {
+            // Requerir llave y haber hablado con BRR
+            if (!EstadoJuego.isCofreAbierto()) {
                 mostrarMensaje("Parece estar cerrada");
+            } else if (!EstadoJuego.isBrrHablado()) {
+                // Tiene llave pero no habló con BRR
+                mostrarMensaje("Deberia buscar a algun testigo");
+            } else {
+                cambiarACasaPrincipal();
             }
         }
         

@@ -332,6 +332,20 @@ public class EstadoJuego {
         return false;
     }
 
+    public static void reiniciarJuegoCompleto() {
+        stopTimer();
+        resetTimer();
+        
+        removeTimerOverlayIfExists();
+        
+        setPuedeMostrarDialogosEspeciales(false);
+        setMensajeCasaPrincipalMostrado(false);
+        setMensajeCalleMostrado(false);
+        
+        resetSpawnedObjects();
+        
+        System.out.println("Juego reiniciado completamente");
+    }
     public static synchronized String getOrAssignUniqueEvidenceForScene(String scene) {
         if (scene == null) return null;
         String key = scene.toLowerCase();

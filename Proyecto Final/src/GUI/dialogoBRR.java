@@ -158,12 +158,10 @@ public class dialogoBRR extends JPanel {
         if (parentFrame != null) {
             if (EstadoJuego.isPuedeMostrarDialogosEspeciales()) {
                 EstadoJuego.setPuedeMostrarDialogosEspeciales(false); 
-               
-                try {
+
+                EstadoJuego.reiniciarJuegoCompleto();
                     Musica.detener();
-                } catch (Exception e) {
-                    System.out.println("Error al detener música: " + e.getMessage());
-                }
+              
                 
                 ventanaInicio inicioPanel = new ventanaInicio(parentFrame);
                 parentFrame.getContentPane().removeAll();
@@ -173,6 +171,8 @@ public class dialogoBRR extends JPanel {
                 inicioPanel.iniciarCarga();
                 
             } else {
+                // Marcar que ya se habló con BRR al finalizar el diálogo normal
+                EstadoJuego.setBrrHablado(true);
                 casaDerecha casaPanel = new casaDerecha(parentFrame);
                 parentFrame.getContentPane().removeAll();
                 parentFrame.getContentPane().add(casaPanel);
