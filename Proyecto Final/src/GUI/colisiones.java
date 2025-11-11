@@ -19,7 +19,7 @@ public class colisiones {
             mascaraColision = ImageIO.read(archivo);
             
             if (mascaraColision != null) {
-                System.out.println("✅ Máscara de colisión cargada: " + mascaraColision.getWidth() + "x" + mascaraColision.getHeight());
+              
                 
                 int w = mascaraColision.getWidth();
                 int h = mascaraColision.getHeight();
@@ -59,10 +59,8 @@ public class colisiones {
                     System.out.println("[colisiones] muestreo inválido, usando fallback obstacleIsBright=true");
                 }
             } else {
-                System.err.println("❌ mascaraColision es NULL");
             }
         } catch (Exception e) {
-            System.err.println("❌ Error al cargar máscara de colisión: " + e.getMessage());
             e.printStackTrace();
         }
     }
